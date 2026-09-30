@@ -9,8 +9,9 @@ function traduzir(msg) {
   if (m.includes("already registered") || m.includes("already been registered")) return "Esse e-mail já tem cadastro. Use a opção Entrar.";
   if (m.includes("signups not allowed") || m.includes("signup is disabled")) return "Novos cadastros estão desativados no momento.";
   if (m.includes("password")) return "A senha não atende aos requisitos. Use pelo menos 8 caracteres.";
-  if (m.includes("rate limit")) return "Muitas tentativas seguidas. Espere alguns minutos.";
-  return "Não foi possível concluir. Tente de novo.";
+  if (m.includes("rate limit") || m.includes("security purposes")) return "Muitas tentativas seguidas. Espere um ou dois minutos antes de tentar de novo.";
+  if (m.includes("error sending") || m.includes("smtp")) return "O e-mail não pôde ser enviado: a configuração de envio (SMTP) no Supabase precisa ser revisada.";
+  return "Não foi possível concluir. Detalhe: " + (msg || "erro desconhecido");
 }
 
 export default function Login() {
@@ -38,7 +39,7 @@ export default function Login() {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
       if (error) setErro(traduzir(error.message));
     } else if (modo === "recuperar") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin + "/nova-senha" });
       if (error) setErro(traduzir(error.message));
       else setOk("Se esse e-mail tiver cadastro, você vai receber um link para criar uma nova senha. Confira também a caixa de spam.");
     } else {

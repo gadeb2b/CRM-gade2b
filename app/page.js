@@ -12,6 +12,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!supabase) return;
+    // Links antigos de recuperação que caírem na página inicial
+    if (/type=recovery/.test(window.location.hash + window.location.search)) setRecuperando(true);
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
     const { data } = supabase.auth.onAuthStateChange((evento, s) => {
       setSessao(s);
