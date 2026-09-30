@@ -3,15 +3,20 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import Login from "../components/Login";
 import Crm from "../components/Crm";
+import NovaSenha from "../components/NovaSenha";
 
 export default function Home() {
   const [sessao, setSessao] = useState(undefined);
   const [perfil, setPerfil] = useState(undefined);
+  const [recuperando, setRecuperando] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_evento, s) => setSessao(s));
+    const { data } = supabase.auth.onAuthStateChange((evento, s) => {
+      setSessao(s);
+      if (evento === "PASSWORD_RECOVERY") setRecuperando(true);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -27,6 +32,7 @@ export default function Home() {
   if (!supabase) return <div className="carregando">Variáveis do Supabase não configuradas na Vercel.</div>;
   if (sessao === undefined) return <div className="carregando">Carregando…</div>;
   if (!sessao) return <Login />;
+  if (recuperando) return <NovaSenha concluir={() => setRecuperando(false)} />;
   if (perfil === undefined) return <div className="carregando">Carregando…</div>;
 
   const sair = () => supabase.auth.signOut();

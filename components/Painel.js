@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, CNAES } from "../lib/constantes";
-import { fmtData, temTel, temMail, waLink, mailLink } from "../lib/util";
+import { fmtData, temTel, temMail, waLink, mailLink, soDigitos, cnpjValido, formatarCnpj } from "../lib/util";
 import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
@@ -10,6 +10,8 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
+  const [cnpjStatus, setCnpjStatus] = useState(null);
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const ctrl = useRef(null);
   const nomeRef = useRef(null);
   const fecharRef = useRef(null);
@@ -22,6 +24,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
   useEffect(() => {
     setAviso(null);
     setNota("");
+    setCnpjStatus(null);
     setTimeout(() => (focoNome ? nomeRef.current : fecharRef.current)?.focus(), 50);
     return () => ctrl.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,6 +75,42 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
     }
   }
 
+  async function buscarCnpj() {
+    const c = soDigitos(d.cnpj);
+    if (!cnpjValido(c)) { setCnpjStatus({ cls: "err", t: "CNPJ inválido. Confira os números." }); return; }
+    setBuscandoCnpj(true);
+    setCnpjStatus({ t: "Consultando a Receita…" });
+    try {
+      const { data } = await supabase.auth.getSession();
+      const r = await fetch("/api/cnpj?cnpj=" + c, { headers: { Authorization: "Bearer " + (data.session?.access_token || "") } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.erro || "Não foi possível consultar o CNPJ.");
+      const patch = {
+        cnpj: formatarCnpj(c),
+        razao_social: j.razao_social || "",
+        cnae: j.cnae || d.cnae,
+        atividade: j.atividade || d.atividade,
+        cidade: j.cidade || "",
+        uf: j.uf || "",
+        situacao_cnpj: j.situacao || "",
+      };
+      if (!d.empresa.trim()) patch.empresa = j.nome_fantasia || j.razao_social || "";
+      if (!d.telefone.trim() && j.telefone) patch.telefone = j.telefone;
+      if (!d.email.trim() && j.email) patch.email = j.email;
+      atualizar(patch);
+      const ativa = !j.situacao || j.situacao.toUpperCase() === "ATIVA";
+      setCnpjStatus({
+        cls: ativa ? "" : "err",
+        t: ativa
+          ? `Dados preenchidos pela Receita${j.cidade ? ` · ${j.cidade}/${j.uf}` : ""}.`
+          : `Atenção: a situação deste CNPJ na Receita é “${j.situacao}”.`,
+      });
+    } catch (e) {
+      setCnpjStatus({ cls: "err", t: e.message });
+    }
+    setBuscandoCnpj(false);
+  }
+
   function mudarCnae(v) {
     const hit = CNAES.find((c) => v === c[0] + " – " + c[1] || v.trim() === c[0]);
     if (hit) atualizar({ cnae: hit[0], atividade: hit[1] });
@@ -115,12 +154,25 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
         <h3>Cliente</h3>
         <div className="grid">
           <div className="field full"><label htmlFor="f-nome">Nome</label><input id="f-nome" ref={nomeRef} {...campo("nome")} /></div>
-          <div className="field"><label htmlFor="f-emp">Empresa</label><input id="f-emp" {...campo("empresa")} /></div>
-          <div className="field"><label htmlFor="f-cnpj">CNPJ</label><input id="f-cnpj" inputMode="numeric" {...campo("cnpj")} /></div>
+          <div className="field full">
+            <label htmlFor="f-cnpj">CNPJ</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input id="f-cnpj" inputMode="numeric" placeholder="00.000.000/0000-00" style={{ flex: 1 }} {...campo("cnpj")}
+                onKeyDown={(e) => { if (e.key === "Enter") buscarCnpj(); }} />
+              <button type="button" className="btn small" onClick={buscarCnpj} disabled={buscandoCnpj || soDigitos(d.cnpj).length !== 14}>
+                {buscandoCnpj ? "Buscando…" : "Buscar dados"}
+              </button>
+            </div>
+            {cnpjStatus && <span className={"status" + (cnpjStatus.cls ? " " + cnpjStatus.cls : "")} style={{ margin: "4px 0 0" }}>{cnpjStatus.t}</span>}
+          </div>
+          <div className="field"><label htmlFor="f-emp">Empresa (nome fantasia)</label><input id="f-emp" {...campo("empresa")} /></div>
+          <div className="field"><label htmlFor="f-razao">Razão social</label><input id="f-razao" {...campo("razao_social")} /></div>
           <div className="field"><label htmlFor="f-cnae">CNAE</label><input id="f-cnae" list="cnaes" placeholder="Ex.: 9602-5/02" value={d.cnae} onChange={(e) => mudarCnae(e.target.value)} /></div>
           <div className="field"><label htmlFor="f-ativ">Atividade</label><input id="f-ativ" placeholder="Preenchida pelo CNAE" {...campo("atividade")} /></div>
           <div className="field"><label htmlFor="f-tel">Telefone / WhatsApp</label><input id="f-tel" inputMode="tel" {...campo("telefone")} /></div>
           <div className="field"><label htmlFor="f-mail">E-mail</label><input id="f-mail" type="email" {...campo("email")} /></div>
+          <div className="field"><label htmlFor="f-cid">Cidade</label><input id="f-cid" {...campo("cidade")} /></div>
+          <div className="field"><label htmlFor="f-uf">UF</label><input id="f-uf" maxLength={2} {...campo("uf")} /></div>
         </div>
         <datalist id="cnaes">{CNAES.map((c) => <option key={c[0]} value={c[0] + " – " + c[1]} />)}</datalist>
 

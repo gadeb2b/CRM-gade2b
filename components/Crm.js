@@ -196,7 +196,8 @@ export default function Crm({ sessao, perfil }) {
     setUsuariosAberto(false);
     const prods = fprod ? [fprod] : [];
     setRascunho({
-      id: "__novo__", user_id: userId, nome: "", empresa: "", cnpj: "", cnae: "", atividade: "",
+      id: "__novo__", user_id: userId, nome: "", empresa: "", razao_social: "", cidade: "", uf: "", situacao_cnpj: "",
+      cnpj: "", cnae: "", atividade: "",
       telefone: "", email: "", canal: "whatsapp", etapa: "novo", etapa_desde: hoje(),
       acao: "Fazer primeiro contato", acao_data: hoje(), motivo_perda: "", tipo_msg_id: null,
       msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods,

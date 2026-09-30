@@ -37,9 +37,14 @@ export default function Login() {
     if (modo === "entrar") {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
       if (error) setErro(traduzir(error.message));
+    } else if (modo === "recuperar") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+      if (error) setErro(traduzir(error.message));
+      else setOk("Se esse e-mail tiver cadastro, você vai receber um link para criar uma nova senha. Confira também a caixa de spam.");
     } else {
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(), password: senha, options: { data: { nome: nome.trim() } },
+        email: email.trim(), password: senha,
+        options: { data: { nome: nome.trim() }, emailRedirectTo: window.location.origin },
       });
       if (error) setErro(traduzir(error.message));
       else if (!data.session) setOk("Cadastro recebido. Se chegar um e-mail de confirmação, clique no link. Depois é só aguardar a aprovação do administrador.");
@@ -51,10 +56,12 @@ export default function Login() {
     <div className="login">
       <form onSubmit={enviar}>
         <h1>CRM Gade2B</h1>
+        {modo === "recuperar" ? <p className="muted" style={{ margin: 0 }}>Informe seu e-mail para receber um link de nova senha.</p> : (
         <div className="tabs" role="tablist" style={{ padding: 0 }}>
           <button type="button" className="tab" role="tab" aria-selected={modo === "entrar"} onClick={() => trocar("entrar")}>Entrar</button>
           <button type="button" className="tab" role="tab" aria-selected={modo === "solicitar"} onClick={() => trocar("solicitar")}>Solicitar acesso</button>
         </div>
+        )}
         {modo === "solicitar" && (
           <div className="field">
             <label htmlFor="nome">Seu nome</label>
@@ -65,10 +72,12 @@ export default function Login() {
           <label htmlFor="email">E-mail</label>
           <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
-        <div className="field">
-          <label htmlFor="senha">Senha</label>
-          <input id="senha" type="password" autoComplete={modo === "entrar" ? "current-password" : "new-password"} value={senha} onChange={(e) => setSenha(e.target.value)} required />
-        </div>
+        {modo !== "recuperar" && (
+          <div className="field">
+            <label htmlFor="senha">Senha</label>
+            <input id="senha" type="password" autoComplete={modo === "entrar" ? "current-password" : "new-password"} value={senha} onChange={(e) => setSenha(e.target.value)} required />
+          </div>
+        )}
         {modo === "solicitar" && (
           <div className="field">
             <label htmlFor="senha2">Repita a senha</label>
@@ -78,8 +87,10 @@ export default function Login() {
         {erro && <p className="err">{erro}</p>}
         {ok && <p className="okmsg">{ok}</p>}
         <button className="btn primary" type="submit" disabled={enviando}>
-          {enviando ? "Enviando…" : modo === "entrar" ? "Entrar" : "Solicitar acesso"}
+          {enviando ? "Enviando…" : modo === "entrar" ? "Entrar" : modo === "recuperar" ? "Enviar link" : "Solicitar acesso"}
         </button>
+        {modo === "entrar" && <button type="button" className="btn ghost small" onClick={() => trocar("recuperar")}>Esqueci minha senha</button>}
+        {modo === "recuperar" && <button type="button" className="btn ghost small" onClick={() => trocar("entrar")}>Voltar para o login</button>}
         {modo === "solicitar" && <p className="muted" style={{ margin: 0 }}>Seu acesso só é liberado depois que o administrador aprovar a solicitação.</p>}
       </form>
     </div>
