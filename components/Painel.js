@@ -6,7 +6,7 @@ import { fmtData, temTel, temMail, waLink, mailLink } from "../lib/util";
 import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
-export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, registrar, excluir, fechar, toast }) {
+export default function Painel({ novo = false, criando = false, concluir, d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, registrar, excluir, fechar, toast }) {
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
@@ -90,7 +90,7 @@ export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, res
   return (
     <aside className="drawer open" aria-labelledby="d-title">
       <div className="d-head">
-        <h2 id="d-title">{d.nome || "Novo lead"}</h2>
+        <h2 id="d-title">{novo ? "Novo negócio" : d.nome || "Sem nome"}</h2>
         <button className="btn ghost" ref={fecharRef} onClick={fechar} aria-label="Fechar painel"><IcX /></button>
       </div>
       <div className="d-body">
@@ -160,13 +160,14 @@ export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, res
           <textarea aria-label="Texto da mensagem" value={d.msg_rascunho}
             onChange={(e) => { setAviso(null); atualizar({ msg_rascunho: e.target.value, msg_origem: "manual" }); }} />
           <div className={"status" + (aviso?.cls ? " " + aviso.cls : "")}>{aviso ? aviso.t : statusPadrao}</div>
+          {novo && <p className="muted" style={{ margin: "0 0 10px" }}>Clique em Concluir para salvar o negócio antes de enviar a mensagem.</p>}
           <div className="send">
-            <a className="btn wa" target="_blank" rel="noopener" aria-disabled={!temTel(d)} href={temTel(d) ? waLink(d) : undefined}
-              onClick={() => { if (temTel(d)) { registrar("WhatsApp enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
+            <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !temTel(d)} href={!novo && temTel(d) ? waLink(d) : undefined}
+              onClick={() => { if (!novo && temTel(d)) { registrar("WhatsApp enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
               <IcChat /> Abrir WhatsApp
             </a>
-            <a className="btn mail" aria-disabled={!temMail(d)} href={temMail(d) ? mailLink(d) : undefined}
-              onClick={() => { if (temMail(d)) { registrar("E-mail enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
+            <a className="btn mail" aria-disabled={novo || !temMail(d)} href={!novo && temMail(d) ? mailLink(d) : undefined}
+              onClick={() => { if (!novo && temMail(d)) { registrar("E-mail enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
               <IcMail /> Abrir e-mail
             </a>
           </div>
@@ -182,6 +183,8 @@ export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, res
         </div>
 
         <h3>Histórico</h3>
+        {novo ? <p className="muted">O histórico começa quando o negócio for criado.</p> : (
+          <>
         <div className="add-note">
           <input placeholder="Registrar interação (ex.: pediu desconto)" aria-label="Nova interação" value={nota}
             onChange={(e) => setNota(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addNota(); }} />
@@ -192,10 +195,14 @@ export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, res
             <li key={n.id} className={n.sistema ? "sys" : ""}><time>{fmtData(n.criado_em)}</time>{n.texto}</li>
           )) : <li className="sys">Nenhuma interação registrada ainda.</li>}
         </ul>
+          </>
+        )}
       </div>
       <div className="d-foot">
-        <button className="btn danger" onClick={excluir}>Excluir negócio</button>
-        <button className="btn primary" onClick={fechar}>Concluir</button>
+        {novo
+          ? <button className="btn" onClick={fechar}>Cancelar</button>
+          : <button className="btn danger" onClick={excluir}>Excluir negócio</button>}
+        <button className="btn primary" onClick={concluir || fechar} disabled={criando}>{criando ? "Salvando…" : "Concluir"}</button>
       </div>
     </aside>
   );
