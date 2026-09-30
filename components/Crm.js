@@ -392,12 +392,13 @@ export default function Crm({ sessao, perfil }) {
   return (
     <div className="app">
       <header>
-        <div className="marca">
+        <button type="button" className="marca" title="Voltar ao quadro" aria-label="Gade2B CRM, voltar ao quadro"
+          onClick={() => { fechar(); setTela("quadro"); }}>
           <img src="/logo-icone.png" alt="" />
-          <img src="/logo-texto.png" alt="gade2b" style={{ height: 22 }} />
+          <img src="/logo-texto.png" alt="" style={{ height: 22 }} />
           <span className="sep" />
           <span className="mod">CRM</span>
-        </div>
+        </button>
         {tela === "quadro" && <>
         <div className="search">
           <IcSearch />

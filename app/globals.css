@@ -231,3 +231,5 @@ header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var
 .scrim{z-index:20}
 .drawer{z-index:30}
 .toast{z-index:40}
+button.marca{border:0;background:none;padding:4px 6px;margin-left:-6px;border-radius:8px;cursor:pointer;color:inherit}
+button.marca:hover{background:var(--surface-2)}
