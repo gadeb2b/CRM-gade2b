@@ -190,7 +190,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
           )) : <span className="muted">Nenhum produto cadastrado. Cadastre em “Produtos e mensagens”.</span>}
         </div>
         <div className="grid" style={{ marginTop: 12 }}>
-          <div className="field"><label htmlFor="f-val">Valor do negócio (R$)</label><input id="f-val" type="number" min="0" step="50" {...campo("valor", { num: true })} /></div>
+          <div className="field"><label htmlFor="f-val">Valor do negócio (R$)</label><input id="f-val" type="number" min="0" step="0.01" {...campo("valor", { num: true })} /></div>
           <div className="field"><label htmlFor="f-canal">Canal principal</label>
             <select id="f-canal" {...campo("canal")}><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option></select>
           </div>

@@ -38,7 +38,7 @@ export default function Config({ produtos, tipos, modelos, assinatura, cfg, fech
                 <div className="inner">
                   <div className="grid" style={{ marginTop: 12 }}>
                     <div className="field full"><label>Nome do produto</label><input value={p.nome} onChange={(e) => cfg.updProduto(p.id, { nome: e.target.value })} autoFocus={abertoItem === p.id && p.nome === "Novo produto"} /></div>
-                    <div className="field"><label>Preço (R$)</label><input type="number" min="0" step="10" value={p.preco} onChange={(e) => cfg.updProduto(p.id, { preco: Number(e.target.value) || 0 })} /></div>
+                    <div className="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" value={p.preco} onChange={(e) => cfg.updProduto(p.id, { preco: Number(e.target.value) || 0 })} /></div>
                     <div className="field"><label>Cobrança</label>
                       <select value={p.cobranca} onChange={(e) => cfg.updProduto(p.id, { cobranca: e.target.value })}>
                         <option value="unico">Pagamento único</option><option value="mensal">Mensal</option>

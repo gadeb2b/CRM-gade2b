@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, ABERTAS, TIPOS_PADRAO, COLUNAS_NEGOCIO, nomeEtapa } from "../lib/constantes";
-import { brl, hoje, diff } from "../lib/util";
+import { brl, brlExato, hoje, diff } from "../lib/util";
 import { modeloPara, prodsDe, statusAcao } from "../lib/mensagens";
 import Painel from "./Painel";
 import Config from "./Config";
@@ -482,7 +482,7 @@ function Card({ d, produtos, resp, onOpen }) {
       onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(); } }}
       onDragStart={(ev) => { ev.dataTransfer.setData("text/plain", d.id); ev.dataTransfer.effectAllowed = "move"; ev.currentTarget.classList.add("dragging"); }}
       onDragEnd={(ev) => ev.currentTarget.classList.remove("dragging")}>
-      <div className="c-top"><span className="c-name">{d.nome || "Sem nome"}</span><span className="c-val">{brl.format(+d.valor || 0)}</span></div>
+      <div className="c-top"><span className="c-name">{d.nome || "Sem nome"}</span><span className="c-val">{brlExato(d.valor)}</span></div>
       {d.empresa && <div className="c-co">{d.empresa}</div>}
       {ps.length > 0 && <div className="c-prod">{ps.map((p) => <span key={p.id}>{p.nome}</span>)}</div>}
       {d.acao && s && <div className={"c-next " + s.cls}><IcClock /><span><b>{s.txt}:</b> {d.acao}</span></div>}
