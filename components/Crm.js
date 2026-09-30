@@ -9,6 +9,7 @@ import Config from "./Config";
 import Usuarios from "./Usuarios";
 import Backup from "./Backup";
 import Catalogo from "./Catalogo";
+import Lixeira from "./Lixeira";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcSliders } from "./Icon";
 
 export default function Crm({ sessao, perfil }) {
@@ -34,6 +35,7 @@ export default function Crm({ sessao, perfil }) {
   const [fprod, setFprod] = useState("");
   const [fornecedores, setFornecedores] = useState([]);
   const [tela, setTela] = useState("quadro");
+  const [lixeiraAberta, setLixeiraAberta] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
   const [focoNome, setFocoNome] = useState(false);
   const [cfgAberto, setCfgAberto] = useState(false);
@@ -87,7 +89,7 @@ export default function Crm({ sessao, perfil }) {
     iniciou.current = true;
     (async () => {
       const [n, np, p, t, m, c, fo] = await Promise.all([
-        supabase.from("negocios").select("*").order("criado_em", { ascending: false }),
+        supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }),
         supabase.from("negocio_produtos").select("negocio_id,produto_id"),
         supabase.from("produtos").select("*").order("criado_em"),
         supabase.from("tipos_mensagem").select("*").order("ordem"),
@@ -191,6 +193,7 @@ export default function Crm({ sessao, perfil }) {
     setCfgAberto(false);
     setUsuariosAberto(false);
     setBackupAberto(false);
+    setLixeiraAberta(false);
   }, [rascunho, salvarTudoAgora]);
 
   // "Novo lead" só abre um rascunho; o negócio é gravado ao clicar em Concluir.
@@ -241,16 +244,19 @@ export default function Crm({ sessao, perfil }) {
     toast(`${data.nome || data.empresa} criado em ${nomeEtapa(data.etapa)}`);
   }, [rascunho, criando, toast]);
 
+  // "Excluir" manda para a lixeira; dá para restaurar depois
   const excluirNegocio = useCallback(async (id) => {
     const d = negocios.find((x) => x.id === id);
-    if (!confirm(`Excluir o negócio de ${d?.nome || "este lead"}? Isso não pode ser desfeito.`)) return;
-    delete pend.current["negocios:" + id];
-    const { error } = await supabase.from("negocios").delete().eq("id", id);
+    if (!confirm(`Mover o negócio de ${d?.nome || d?.empresa || "este lead"} para a lixeira? Dá para restaurar depois, no botão Lixeira.`)) return;
+    salvarTudoAgora();
+    const { error } = await supabase.from("negocios").update({ excluido_em: new Date().toISOString(), excluido_por: userId }).eq("id", id);
     if (error) { toast("Não foi possível excluir: " + error.message); return; }
+    await supabase.from("interacoes").insert({ negocio_id: id, texto: "Enviado para a lixeira", sistema: true });
     setNegocios((ns) => ns.filter((x) => x.id !== id));
+    setInteracoes((m) => { const c = { ...m }; delete c[id]; return c; });
     setAbertoId(null);
-    toast("Negócio excluído");
-  }, [negocios, toast]);
+    toast("Negócio movido para a lixeira");
+  }, [negocios, toast, userId, salvarTudoAgora]);
 
   /* ---------- Produtos, tipos e remetente ---------- */
   const cfg = {
@@ -370,10 +376,10 @@ export default function Crm({ sessao, perfil }) {
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, fechar]);
 
   if (erroCarga) return <div className="carregando">Erro ao carregar os dados: {erroCarga}</div>;
   if (!carregado) return <div className="carregando">Carregando seus negócios…</div>;
@@ -432,6 +438,7 @@ export default function Crm({ sessao, perfil }) {
         {ehAdmin && <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(false); setBackupAberto(true); }}>Backup</button>}
         <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setBackupAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
         {ehAdmin && <button className={"btn" + (tela === "catalogo" ? " ativo-tela" : "")} onClick={() => { fechar(); setTela(tela === "catalogo" ? "quadro" : "catalogo"); }}>{tela === "catalogo" ? "Quadro" : "Catálogo"}</button>}
+        <button className="btn" onClick={() => { fechar(); setLixeiraAberta(true); }}>Lixeira</button>
         <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
         <button className="btn ghost" onClick={() => { salvarTudoAgora(); supabase.auth.signOut(); }} title={sessao.user.email}>Sair</button>
       </header>
@@ -486,7 +493,7 @@ export default function Crm({ sessao, perfil }) {
       </main>
       </>}
 
-      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta ? " open" : "")} onClick={fechar} />
 
       {rascunho && (
         <Painel
@@ -516,6 +523,10 @@ export default function Crm({ sessao, perfil }) {
         />
       )}
       {cfgAberto && <Config tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
+      {lixeiraAberta && (
+        <Lixeira ehAdmin={ehAdmin} userId={userId} nomes={nomes} fechar={fechar} toast={toast}
+          onRestaurado={(d) => { setNegocios((ns) => [d, ...ns]); setInteracoes((m) => { const c = { ...m }; delete c[d.id]; return c; }); }} />
+      )}
       {backupAberto && <Backup fechar={fechar} toast={toast} />}
       {usuariosAberto && <Usuarios pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 

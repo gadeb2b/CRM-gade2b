@@ -252,7 +252,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
       <div className="d-foot">
         {novo
           ? <button className="btn" onClick={fechar}>Cancelar</button>
-          : <button className="btn danger" onClick={excluir}>Excluir negócio</button>}
+          : <button className="btn danger" onClick={excluir}>Mover para a lixeira</button>}
         <button className="btn primary" onClick={concluir || fechar} disabled={criando}>{criando ? "Salvando…" : "Concluir"}</button>
       </div>
     </aside>
