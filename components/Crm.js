@@ -16,6 +16,8 @@ export default function Crm({ sessao, perfil }) {
   const [pessoas, setPessoas] = useState([]);
   const [usuariosAberto, setUsuariosAberto] = useState(false);
   const [fresp, setFresp] = useState("");
+  const [rascunho, setRascunho] = useState(null);
+  const [criando, setCriando] = useState(false);
   const [carregado, setCarregado] = useState(false);
   const [erroCarga, setErroCarga] = useState("");
   const [negocios, setNegocios] = useState([]);
@@ -172,25 +174,63 @@ export default function Crm({ sessao, perfil }) {
   }, [interacoes]);
 
   const fechar = useCallback(() => {
+    if (rascunho) {
+      const preenchido = rascunho.nome || rascunho.empresa || rascunho.telefone || rascunho.email;
+      if (preenchido && !confirm("Descartar este novo negócio? Ele ainda não foi salvo.")) return;
+      setRascunho(null);
+    }
     salvarTudoAgora();
     setAbertoId(null);
     setCfgAberto(false);
     setUsuariosAberto(false);
-  }, [salvarTudoAgora]);
+  }, [rascunho, salvarTudoAgora]);
 
-  const novoNegocio = useCallback(async () => {
-    const base = { nome: "", etapa: "novo", acao: "Fazer primeiro contato", acao_data: hoje() };
+  // "Novo lead" só abre um rascunho; o negócio é gravado ao clicar em Concluir.
+  const novoNegocio = useCallback(() => {
+    salvarTudoAgora();
+    setAbertoId(null);
+    setCfgAberto(false);
+    setUsuariosAberto(false);
     const prods = fprod ? [fprod] : [];
-    base.valor = prodsDe({ produtos: prods }, produtos).reduce((s, p) => s + (+p.preco || 0), 0);
-    const { data, error } = await supabase.from("negocios").insert(base).select().single();
-    if (error) { toast("Não foi possível criar: " + error.message); return; }
-    if (prods.length) await supabase.from("negocio_produtos").insert({ negocio_id: data.id, produto_id: prods[0] });
-    const { data: nota } = await supabase.from("interacoes").insert({ negocio_id: data.id, texto: "Lead criado", sistema: true }).select().single();
-    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: prods }, ...ns]);
-    setInteracoes((m) => ({ ...m, [data.id]: nota ? [nota] : [] }));
-    setAbertoId(data.id);
+    setRascunho({
+      id: "__novo__", user_id: userId, nome: "", empresa: "", cnpj: "", cnae: "", atividade: "",
+      telefone: "", email: "", canal: "whatsapp", etapa: "novo", etapa_desde: hoje(),
+      acao: "Fazer primeiro contato", acao_data: hoje(), motivo_perda: "", tipo_msg_id: null,
+      msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods,
+      valor: prodsDe({ produtos: prods }, produtos).reduce((s, p) => s + (+p.preco || 0), 0),
+    });
     setFocoNome(true);
-  }, [fprod, produtos, toast]);
+  }, [fprod, produtos, userId, salvarTudoAgora]);
+
+  const atualizarRascunho = useCallback((patch) => setRascunho((r) => (r ? { ...r, ...patch } : r)), []);
+
+  const toggleProdutoRascunho = useCallback((produtoId) => {
+    setRascunho((r) => {
+      if (!r) return r;
+      const lista = r.produtos.includes(produtoId) ? r.produtos.filter((x) => x !== produtoId) : [...r.produtos, produtoId];
+      return { ...r, produtos: lista, valor: prodsDe({ produtos: lista }, produtos).reduce((s, p) => s + (+p.preco || 0), 0) };
+    });
+  }, [produtos]);
+
+  const criarRascunho = useCallback(async () => {
+    if (!rascunho || criando) return;
+    if (!rascunho.nome.trim() && !rascunho.empresa.trim()) { toast("Preencha pelo menos o nome ou a empresa"); return; }
+    setCriando(true);
+    const linha = {};
+    COLUNAS_NEGOCIO.forEach((k) => { linha[k] = k === "acao_data" && !rascunho[k] ? null : rascunho[k]; });
+    const { data, error } = await supabase.from("negocios").insert(linha).select().single();
+    if (error) { setCriando(false); toast("Não foi possível criar: " + error.message); return; }
+    if (rascunho.produtos.length) {
+      const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid })));
+      if (r.error) toast("Negócio criado, mas os produtos não foram salvos: " + r.error.message);
+    }
+    const { data: nota } = await supabase.from("interacoes").insert({ negocio_id: data.id, texto: "Lead criado", sistema: true }).select().single();
+    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos }, ...ns]);
+    setInteracoes((m) => ({ ...m, [data.id]: nota ? [nota] : [] }));
+    setRascunho(null);
+    setCriando(false);
+    toast(`${data.nome || data.empresa} criado em ${nomeEtapa(data.etapa)}`);
+  }, [rascunho, criando, toast]);
 
   const excluirNegocio = useCallback(async (id) => {
     const d = negocios.find((x) => x.id === id);
@@ -285,10 +325,10 @@ export default function Crm({ sessao, perfil }) {
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || cfgAberto || usuariosAberto)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, cfgAberto, usuariosAberto, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, fechar]);
 
   if (erroCarga) return <div className="carregando">Erro ao carregar os dados: {erroCarga}</div>;
   if (!carregado) return <div className="carregando">Carregando seus negócios…</div>;
@@ -385,7 +425,22 @@ export default function Crm({ sessao, perfil }) {
         })}
       </main>
 
-      <div className={"scrim" + (aberto || cfgAberto || usuariosAberto ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto ? " open" : "")} onClick={fechar} />
+
+      {rascunho && (
+        <Painel
+          novo criando={criando}
+          d={rascunho} ctx={ctx} interacoes={[]} iaDisponivel={iaDisponivel} focoNome={focoNome}
+          responsaveis={ehAdmin ? pessoas.filter((p) => p.status === "ativo") : null}
+          atualizar={atualizarRascunho}
+          mover={(etapa) => atualizarRascunho({ etapa, tipo_msg_id: null })}
+          toggleProduto={toggleProdutoRascunho}
+          registrar={() => {}}
+          excluir={fechar}
+          concluir={criarRascunho}
+          fechar={fechar} toast={toast}
+        />
+      )}
 
       {aberto && (
         <Painel
