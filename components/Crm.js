@@ -6,10 +6,16 @@ import { brl, hoje, diff } from "../lib/util";
 import { modeloPara, prodsDe, statusAcao } from "../lib/mensagens";
 import Painel from "./Painel";
 import Config from "./Config";
+import Usuarios from "./Usuarios";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcSliders } from "./Icon";
 
-export default function Crm({ sessao }) {
+export default function Crm({ sessao, perfil }) {
   const userId = sessao.user.id;
+  const ehAdmin = perfil.papel === "admin" || perfil.papel === "super_admin";
+  const ehSuper = perfil.papel === "super_admin";
+  const [pessoas, setPessoas] = useState([]);
+  const [usuariosAberto, setUsuariosAberto] = useState(false);
+  const [fresp, setFresp] = useState("");
   const [carregado, setCarregado] = useState(false);
   const [erroCarga, setErroCarga] = useState("");
   const [negocios, setNegocios] = useState([]);
@@ -85,7 +91,7 @@ export default function Crm({ sessao }) {
       if (falha) { setErroCarga(falha.error.message); return; }
 
       let tiposRows = t.data;
-      if (!tiposRows.length) {
+      if (!tiposRows.length && ehAdmin) {
         const r = await supabase.from("tipos_mensagem").insert(TIPOS_PADRAO.map((x, i) => ({ ...x, ordem: i }))).select();
         if (r.error) { setErroCarga(r.error.message); return; }
         tiposRows = r.data.sort((a, b) => a.ordem - b.ordem);
@@ -106,6 +112,13 @@ export default function Crm({ sessao }) {
     })();
     fetch("/api/gerar-mensagem").then((r) => r.json()).then((j) => setIaDisponivel(!!j.disponivel)).catch(() => {});
   }, []);
+
+  const carregarPessoas = useCallback(async () => {
+    if (!ehAdmin) return;
+    const { data, error } = await supabase.from("perfis").select("user_id,nome,email,papel,status,criado_em").order("criado_em");
+    if (!error) setPessoas(data);
+  }, [ehAdmin]);
+  useEffect(() => { carregarPessoas(); }, [carregarPessoas]);
 
   const ctx = useMemo(() => ({ produtos, tipos, modelos, assinatura }), [produtos, tipos, modelos, assinatura]);
 
@@ -162,6 +175,7 @@ export default function Crm({ sessao }) {
     salvarTudoAgora();
     setAbertoId(null);
     setCfgAberto(false);
+    setUsuariosAberto(false);
   }, [salvarTudoAgora]);
 
   const novoNegocio = useCallback(async () => {
@@ -262,6 +276,7 @@ export default function Crm({ sessao }) {
     if (filtro === "email" && d.canal !== "email") return false;
     if (filtro === "atrasados") { const s = statusAcao(d); if (!s || s.cls !== "late") return false; }
     if (fprod && !d.produtos.includes(fprod)) return false;
+    if (fresp && d.user_id !== fresp) return false;
     if (busca) {
       const t = (d.nome + " " + d.empresa + " " + d.telefone + " " + d.email).toLowerCase();
       if (!t.includes(busca.toLowerCase())) return false;
@@ -270,10 +285,10 @@ export default function Crm({ sessao }) {
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || cfgAberto)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || cfgAberto || usuariosAberto)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, cfgAberto, fechar]);
+  }, [abertoId, cfgAberto, usuariosAberto, fechar]);
 
   if (erroCarga) return <div className="carregando">Erro ao carregar os dados: {erroCarga}</div>;
   if (!carregado) return <div className="carregando">Carregando seus negócios…</div>;
@@ -286,6 +301,8 @@ export default function Crm({ sessao }) {
   const nPerdido = negocios.filter((d) => d.etapa === "perdido").length;
   const atrasados = negocios.filter((d) => statusAcao(d)?.cls === "late").length;
   const aberto = negocios.find((d) => d.id === abertoId);
+  const pendentes = pessoas.filter((p) => p.status === "pendente").length;
+  const nomes = Object.fromEntries(pessoas.map((p) => [p.user_id, p.nome || p.email]));
 
   return (
     <div className="app">
@@ -299,13 +316,24 @@ export default function Crm({ sessao }) {
           <option value="">Todos os produtos</option>
           {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
         </select>
+        {ehAdmin && (
+          <select className="fsel" aria-label="Filtrar por responsável" value={fresp} onChange={(e) => setFresp(e.target.value)}>
+            <option value="">Todos os responsáveis</option>
+            {pessoas.filter((p) => p.status === "ativo").map((p) => <option key={p.user_id} value={p.user_id}>{p.nome || p.email}</option>)}
+          </select>
+        )}
         <div className="chips" role="group" aria-label="Filtros">
           {[["todos", "Todos"], ["whatsapp", "WhatsApp"], ["email", "E-mail"], ["atrasados", "Ações atrasadas"]].map(([id, t]) => (
             <button key={id} className="chip" aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{t}</button>
           ))}
         </div>
         <div className="spacer" />
-        <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(true); }}><IcSliders />Produtos e mensagens</button>
+        {ehSuper && (
+          <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(true); }}>
+            Usuários {pendentes > 0 && <span className="badge">{pendentes}</span>}
+          </button>
+        )}
+        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Produtos e mensagens" : "Minha assinatura"}</button>
         <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
         <button className="btn ghost" onClick={() => { salvarTudoAgora(); supabase.auth.signOut(); }} title={sessao.user.email}>Sair</button>
       </header>
@@ -349,7 +377,7 @@ export default function Crm({ sessao }) {
                 <div className="col-sum">{brl.format(soma)}</div>
               </div>
               <div className="cards">
-                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} onOpen={() => abrir(d.id)} />)
+                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} resp={ehAdmin ? nomes[d.user_id] : null} onOpen={() => abrir(d.id)} />)
                   : <div className="empty">{busca || fprod || filtro !== "todos" ? "Nenhum negócio com esse filtro" : "Arraste um card para cá"}</div>}
               </div>
             </section>
@@ -357,11 +385,12 @@ export default function Crm({ sessao }) {
         })}
       </main>
 
-      <div className={"scrim" + (aberto || cfgAberto ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || cfgAberto || usuariosAberto ? " open" : "")} onClick={fechar} />
 
       {aberto && (
         <Painel
           d={aberto} ctx={ctx} interacoes={interacoes[aberto.id] || []} iaDisponivel={iaDisponivel} focoNome={focoNome}
+          responsaveis={ehAdmin ? pessoas.filter((p) => p.status === "ativo" || p.user_id === aberto.user_id) : null}
           atualizar={(patch) => atualizarNegocio(aberto.id, patch)}
           mover={(etapa) => mover(aberto.id, etapa)}
           toggleProduto={(pid) => toggleProduto(aberto.id, pid)}
@@ -370,14 +399,15 @@ export default function Crm({ sessao }) {
           fechar={fechar} toast={toast}
         />
       )}
-      {cfgAberto && <Config produtos={produtos} tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} />}
+      {cfgAberto && <Config produtos={produtos} tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
+      {usuariosAberto && <Usuarios pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 
       <div className={"toast" + (toastTxt ? " show" : "")} role="status" aria-live="polite">{toastTxt}</div>
     </div>
   );
 }
 
-function Card({ d, produtos, onOpen }) {
+function Card({ d, produtos, resp, onOpen }) {
   const s = statusAcao(d);
   const ps = prodsDe(d, produtos);
   const parado = ABERTAS.includes(d.etapa) ? diff(hoje(), d.etapa_desde) : 0;
@@ -394,6 +424,7 @@ function Card({ d, produtos, onOpen }) {
       {d.etapa === "perdido" && d.motivo_perda && <div className="c-next">{d.motivo_perda}</div>}
       <div className="c-foot">
         <span className="ch-tag">{d.canal === "whatsapp" ? <><IcChat /> WhatsApp</> : <><IcMail /> E-mail</>}</span>
+        {resp && <span className="c-resp">{resp}</span>}
         {parado >= 7 && <span className="stale">parado há {parado} dias</span>}
       </div>
     </div>

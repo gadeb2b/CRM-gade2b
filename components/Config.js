@@ -8,8 +8,8 @@ function Vars() {
   return <div className="vars">Variáveis que você pode usar: {VARS.map((v) => <code key={v}>{"{" + v + "}"}</code>).reduce((a, b) => [a, " ", b])}</div>;
 }
 
-export default function Config({ produtos, tipos, modelos, assinatura, cfg, fechar }) {
-  const [aba, setAba] = useState("produtos");
+export default function Config({ produtos, tipos, modelos, assinatura, cfg, fechar, podeEditar }) {
+  const [aba, setAba] = useState(podeEditar ? "produtos" : "remetente");
   const [abertoItem, setAbertoItem] = useState(null);
   const fecharRef = useRef(null);
   useEffect(() => { fecharRef.current?.focus(); }, []);
@@ -20,11 +20,11 @@ export default function Config({ produtos, tipos, modelos, assinatura, cfg, fech
   return (
     <aside className="drawer wide open" aria-labelledby="c-title">
       <div className="d-head">
-        <h2 id="c-title">Produtos e mensagens</h2>
+        <h2 id="c-title">{podeEditar ? "Produtos e mensagens" : "Minha assinatura"}</h2>
         <button className="btn ghost" ref={fecharRef} onClick={fechar} aria-label="Fechar configurações"><IcX /></button>
       </div>
       <div className="tabs" role="tablist">
-        {[["produtos", "Produtos"], ["tipos", "Tipos de mensagem"], ["remetente", "Remetente"]].map(([id, n]) => (
+        {(podeEditar ? [["produtos", "Produtos"], ["tipos", "Tipos de mensagem"], ["remetente", "Remetente"]] : [["remetente", "Remetente"]]).map(([id, n]) => (
           <button key={id} className="tab" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}>{n}</button>
         ))}
       </div>

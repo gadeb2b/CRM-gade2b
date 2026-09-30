@@ -6,7 +6,7 @@ import { fmtData, temTel, temMail, waLink, mailLink } from "../lib/util";
 import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
-export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, atualizar, mover, toggleProduto, registrar, excluir, fechar, toast }) {
+export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, registrar, excluir, fechar, toast }) {
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
@@ -102,6 +102,15 @@ export default function Painel({ d, ctx, interacoes, iaDisponivel, focoNome, atu
             </button>
           ))}
         </div>
+
+        {responsaveis && (
+          <div className="field" style={{ marginTop: 14, maxWidth: 280 }}>
+            <label htmlFor="f-resp">Responsável</label>
+            <select id="f-resp" {...campo("user_id")}>
+              {responsaveis.map((p) => <option key={p.user_id} value={p.user_id}>{p.nome || p.email}</option>)}
+            </select>
+          </div>
+        )}
 
         <h3>Cliente</h3>
         <div className="grid">
