@@ -5,7 +5,12 @@ import { precoTxt } from "../lib/mensagens";
 import { IcX } from "./Icon";
 
 function Vars() {
-  return <div className="vars">Variáveis que você pode usar: {VARS.map((v) => <code key={v}>{"{" + v + "}"}</code>).reduce((a, b) => [a, " ", b])}</div>;
+  return (
+    <div className="vars">
+      Variáveis que você pode usar: {VARS.map((v) => <code key={v}>{"{" + v + "}"}</code>).reduce((a, b) => [a, " ", b])}
+      <br />O <code>{"{preco}"}</code> já vem com “R$” e com os centavos (ex.: R$ 99,99), e com “/mês” nos produtos mensais.
+    </div>
+  );
 }
 
 export default function Config({ produtos, tipos, modelos, assinatura, cfg, fechar, podeEditar }) {
