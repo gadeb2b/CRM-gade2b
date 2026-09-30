@@ -7,6 +7,7 @@ import { modeloPara, prodsDe, statusAcao } from "../lib/mensagens";
 import Painel from "./Painel";
 import Config from "./Config";
 import Usuarios from "./Usuarios";
+import Backup from "./Backup";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcSliders } from "./Icon";
 
 export default function Crm({ sessao, perfil }) {
@@ -15,6 +16,7 @@ export default function Crm({ sessao, perfil }) {
   const ehSuper = perfil.papel === "super_admin";
   const [pessoas, setPessoas] = useState([]);
   const [usuariosAberto, setUsuariosAberto] = useState(false);
+  const [backupAberto, setBackupAberto] = useState(false);
   const [fresp, setFresp] = useState("");
   const [rascunho, setRascunho] = useState(null);
   const [criando, setCriando] = useState(false);
@@ -183,6 +185,7 @@ export default function Crm({ sessao, perfil }) {
     setAbertoId(null);
     setCfgAberto(false);
     setUsuariosAberto(false);
+    setBackupAberto(false);
   }, [rascunho, salvarTudoAgora]);
 
   // "Novo lead" só abre um rascunho; o negócio é gravado ao clicar em Concluir.
@@ -325,10 +328,10 @@ export default function Crm({ sessao, perfil }) {
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, rascunho, cfgAberto, usuariosAberto, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, fechar]);
 
   if (erroCarga) return <div className="carregando">Erro ao carregar os dados: {erroCarga}</div>;
   if (!carregado) return <div className="carregando">Carregando seus negócios…</div>;
@@ -369,11 +372,12 @@ export default function Crm({ sessao, perfil }) {
         </div>
         <div className="spacer" />
         {ehSuper && (
-          <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(true); }}>
+          <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setBackupAberto(false); setUsuariosAberto(true); }}>
             Usuários {pendentes > 0 && <span className="badge">{pendentes}</span>}
           </button>
         )}
-        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Produtos e mensagens" : "Minha assinatura"}</button>
+        {ehAdmin && <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(false); setBackupAberto(true); }}>Backup</button>}
+        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setBackupAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Produtos e mensagens" : "Minha assinatura"}</button>
         <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
         <button className="btn ghost" onClick={() => { salvarTudoAgora(); supabase.auth.signOut(); }} title={sessao.user.email}>Sair</button>
       </header>
@@ -425,7 +429,7 @@ export default function Crm({ sessao, perfil }) {
         })}
       </main>
 
-      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto ? " open" : "")} onClick={fechar} />
 
       {rascunho && (
         <Painel
@@ -455,6 +459,7 @@ export default function Crm({ sessao, perfil }) {
         />
       )}
       {cfgAberto && <Config produtos={produtos} tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
+      {backupAberto && <Backup fechar={fechar} toast={toast} />}
       {usuariosAberto && <Usuarios pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 
       <div className={"toast" + (toastTxt ? " show" : "")} role="status" aria-live="polite">{toastTxt}</div>
