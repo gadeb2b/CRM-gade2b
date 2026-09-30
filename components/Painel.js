@@ -99,11 +99,16 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
       if (!d.email.trim() && j.email) patch.email = j.email;
       atualizar(patch);
       const ativa = !j.situacao || j.situacao.toUpperCase() === "ATIVA";
+      const obs = [];
+      if (!j.email) obs.push("A Receita não tem e-mail cadastrado para este CNPJ.");
+      else if (d.email.trim() && d.email.trim().toLowerCase() !== j.email) obs.push(`O e-mail da Receita (${j.email}) não foi usado porque o campo já estava preenchido.`);
+      if (!j.telefone) obs.push("A Receita não tem telefone cadastrado.");
+      else if (d.telefone.trim() && soDigitos(d.telefone) !== soDigitos(j.telefone)) obs.push(`Telefone da Receita: ${j.telefone} (não foi usado porque o campo já estava preenchido).`);
       setCnpjStatus({
         cls: ativa ? "" : "err",
-        t: ativa
+        t: (ativa
           ? `Dados preenchidos pela Receita${j.cidade ? ` · ${j.cidade}/${j.uf}` : ""}.`
-          : `Atenção: a situação deste CNPJ na Receita é “${j.situacao}”.`,
+          : `Atenção: a situação deste CNPJ na Receita é “${j.situacao}”.`) + (obs.length ? " " + obs.join(" ") : ""),
       });
     } catch (e) {
       setCnpjStatus({ cls: "err", t: e.message });

@@ -42,48 +42,56 @@ export async function GET(req) {
   const cnpj = (new URL(req.url).searchParams.get("cnpj") || "").replace(/\D/g, "");
   if (cnpj.length !== 14) return Response.json({ erro: "O CNPJ precisa ter 14 números." }, { status: 400 });
 
-  // 1ª tentativa: BrasilAPI
-  try {
+  const brasilApi = async () => {
     const r = await buscar(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-    if (r.naoEncontrado) return Response.json({ erro: "CNPJ não encontrado na Receita." }, { status: 404 });
+    if (r.naoEncontrado) return { naoEncontrado: true };
     const d = r.dados;
-    return Response.json({
+    return {
       razao_social: titulo(d.razao_social),
       nome_fantasia: titulo(d.nome_fantasia),
       cnae: formatarCnae(d.cnae_fiscal),
       atividade: d.cnae_fiscal_descricao || "",
-      telefone: formatarTel("", d.ddd_telefone_1),
-      email: (d.email || "").toLowerCase(),
+      telefone: formatarTel("", d.ddd_telefone_1) || formatarTel("", d.ddd_telefone_2),
+      email: (d.email || "").trim().toLowerCase(),
       cidade: titulo(d.municipio),
       uf: d.uf || "",
       situacao: d.descricao_situacao_cadastral || "",
-      fonte: "BrasilAPI",
-    });
-  } catch (e) {
-    console.error("BrasilAPI falhou:", e.message);
-  }
-
-  // 2ª tentativa: publica.cnpj.ws (limite de 3 consultas por minuto)
-  try {
+    };
+  };
+  const cnpjWs = async () => {
     const r = await buscar(`https://publica.cnpj.ws/cnpj/${cnpj}`);
-    if (r.naoEncontrado) return Response.json({ erro: "CNPJ não encontrado na Receita." }, { status: 404 });
+    if (r.naoEncontrado) return { naoEncontrado: true };
     const d = r.dados, e = d.estabelecimento || {};
     const ap = e.atividade_principal || {};
-    return Response.json({
+    return {
       razao_social: titulo(d.razao_social),
       nome_fantasia: titulo(e.nome_fantasia),
       cnae: ap.subclasse || formatarCnae(ap.id),
       atividade: ap.descricao || "",
-      telefone: formatarTel(e.ddd1, e.telefone1),
-      email: (e.email || "").toLowerCase(),
+      telefone: formatarTel(e.ddd1, e.telefone1) || formatarTel(e.ddd2, e.telefone2),
+      email: (e.email || "").trim().toLowerCase(),
       cidade: titulo(e.cidade?.nome),
       uf: e.estado?.sigla || "",
       situacao: (e.situacao_cadastral || "").toUpperCase(),
-      fonte: "CNPJ.ws",
-    });
-  } catch (e) {
-    console.error("CNPJ.ws falhou:", e.message);
+    };
+  };
+
+  let dados = null;
+  try { dados = await brasilApi(); } catch (e) { console.error("BrasilAPI falhou:", e.message); }
+
+  // Se a BrasilAPI não respondeu, ou respondeu sem e-mail/telefone, tenta a CNPJ.ws para completar
+  if (!dados || (!dados.naoEncontrado && (!dados.email || !dados.telefone))) {
+    try {
+      const extra = await cnpjWs();
+      if (!dados) dados = extra;
+      else if (!extra.naoEncontrado) {
+        if (!dados.email) dados.email = extra.email;
+        if (!dados.telefone) dados.telefone = extra.telefone;
+      }
+    } catch (e) { console.error("CNPJ.ws falhou:", e.message); }
   }
 
-  return Response.json({ erro: "As consultas de CNPJ não responderam agora. Tente de novo em alguns minutos." }, { status: 502 });
+  if (!dados) return Response.json({ erro: "As consultas de CNPJ não responderam agora. Tente de novo em alguns minutos." }, { status: 502 });
+  if (dados.naoEncontrado) return Response.json({ erro: "CNPJ não encontrado na Receita." }, { status: 404 });
+  return Response.json(dados);
 }
