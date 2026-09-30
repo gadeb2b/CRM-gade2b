@@ -8,3 +8,4 @@ export const IcX = () => (<svg {...P} width={18} height={18}><path d="M6 6l12 12
 export const IcPlus = () => (<svg {...P} width={16} height={16} strokeWidth={2.4}><path d="M12 5v14M5 12h14" /></svg>);
 export const IcSearch = () => (<svg {...P} width={16} height={16} strokeWidth={2}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>);
 export const IcSliders = () => (<svg {...P} width={16} height={16} strokeWidth={2}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>);
+export const IcMenu = () => (<svg {...P} width={20} height={20} strokeWidth={2.2}><path d="M4 6h16M4 12h16M4 18h16" /></svg>);

@@ -10,7 +10,7 @@ import Usuarios from "./Usuarios";
 import Backup from "./Backup";
 import Catalogo from "./Catalogo";
 import Lixeira from "./Lixeira";
-import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcSliders } from "./Icon";
+import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcMenu } from "./Icon";
 
 export default function Crm({ sessao, perfil }) {
   const userId = sessao.user.id;
@@ -36,6 +36,8 @@ export default function Crm({ sessao, perfil }) {
   const [fornecedores, setFornecedores] = useState([]);
   const [tela, setTela] = useState("quadro");
   const [lixeiraAberta, setLixeiraAberta] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
+  const menuRef = useRef(null);
   const [abertoId, setAbertoId] = useState(null);
   const [focoNome, setFocoNome] = useState(false);
   const [cfgAberto, setCfgAberto] = useState(false);
@@ -381,6 +383,22 @@ export default function Crm({ sessao, perfil }) {
     return () => document.removeEventListener("keydown", esc);
   }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, fechar]);
 
+  useEffect(() => {
+    if (!menuAberto) return;
+    const fora = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuAberto(false); };
+    const esc = (e) => { if (e.key === "Escape") setMenuAberto(false); };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
+  }, [menuAberto]);
+
+  // Fecha o menu e o que estiver aberto antes de abrir a opção escolhida
+  function abrirMenu(acao) {
+    setMenuAberto(false);
+    fechar();
+    acao();
+  }
+
   if (erroCarga) return <div className="carregando">Erro ao carregar os dados: {erroCarga}</div>;
   if (!carregado) return <div className="carregando">Carregando seus negócios…</div>;
 
@@ -398,49 +416,77 @@ export default function Crm({ sessao, perfil }) {
   return (
     <div className="app">
       <header>
-        <button type="button" className="marca" title="Voltar ao quadro" aria-label="Gade2B CRM, voltar ao quadro"
-          onClick={() => { fechar(); setTela("quadro"); }}>
-          <img src="/logo-icone.png" alt="" />
-          <img src="/logo-texto.png" alt="" style={{ height: 22 }} />
-          <span className="sep" />
-          <span className="mod">CRM</span>
-        </button>
-        {tela === "quadro" && <>
-        <div className="search">
-          <IcSearch />
-          <input type="search" placeholder="Buscar nome, empresa ou telefone" aria-label="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        </div>
-        <select className="fsel" aria-label="Filtrar por produto" value={fprod} onChange={(e) => setFprod(e.target.value)}>
-          <option value="">Todos os produtos</option>
-          {[...fornecedores, { id: null, nome: "Sem fornecedor" }].map((f) => {
-            const ps = produtos.filter((p) => (p.fornecedor_id || null) === f.id).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
-            return ps.length ? <optgroup key={f.id || "sem"} label={f.nome}>{ps.map((p) => <option key={p.id} value={p.id}>{p.nome || "Sem nome"}</option>)}</optgroup> : null;
-          })}
-        </select>
-        {ehAdmin && (
-          <select className="fsel" aria-label="Filtrar por responsável" value={fresp} onChange={(e) => setFresp(e.target.value)}>
-            <option value="">Todos os responsáveis</option>
-            {pessoas.filter((p) => p.status === "ativo").map((p) => <option key={p.user_id} value={p.user_id}>{p.nome || p.email}</option>)}
-          </select>
-        )}
-        <div className="chips" role="group" aria-label="Filtros">
-          {[["todos", "Todos"], ["whatsapp", "WhatsApp"], ["email", "E-mail"], ["atrasados", "Ações atrasadas"]].map(([id, t]) => (
-            <button key={id} className="chip" aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{t}</button>
-          ))}
-        </div>
-        </>}
-        <div className="spacer" />
-        {ehSuper && (
-          <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setBackupAberto(false); setUsuariosAberto(true); }}>
-            Usuários {pendentes > 0 && <span className="badge">{pendentes}</span>}
+        <div className="hrow">
+          <button type="button" className="marca" title="Voltar ao quadro" aria-label="Gade2B CRM, voltar ao quadro"
+            onClick={() => { fechar(); setTela("quadro"); }}>
+            <img src="/logo-icone.png" alt="" />
+            <img src="/logo-texto.png" alt="" style={{ height: 22 }} />
+            <span className="sep" />
+            <span className="mod">CRM</span>
           </button>
+
+          <div className="menu-wrap" ref={menuRef}>
+            <button type="button" className={"btn menu-btn" + (menuAberto ? " aberto" : "")} aria-haspopup="menu" aria-expanded={menuAberto}
+              aria-label="Menu" title="Menu" onClick={() => setMenuAberto((v) => !v)}>
+              <IcMenu />
+              {ehSuper && pendentes > 0 && <span className="badge menu-badge">{pendentes}</span>}
+            </button>
+            {menuAberto && (
+              <div className="menu" role="menu">
+                <div className="menu-user">
+                  <b>{perfil.nome || sessao.user.email}</b>
+                  <span className="muted">{sessao.user.email} · {{ super_admin: "Super admin", admin: "Admin", vendedor: "Vendedor" }[perfil.papel]}</span>
+                </div>
+                <button role="menuitem" className={tela === "quadro" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("quadro"))}>Quadro de vendas</button>
+                {ehAdmin && <button role="menuitem" className={tela === "catalogo" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("catalogo"))}>Catálogo de produtos</button>}
+                <button role="menuitem" onClick={() => abrirMenu(() => setCfgAberto(true))}>{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
+                <button role="menuitem" onClick={() => abrirMenu(() => setLixeiraAberta(true))}>Lixeira</button>
+                {(ehAdmin || ehSuper) && <div className="menu-sep" />}
+                {ehSuper && (
+                  <button role="menuitem" onClick={() => abrirMenu(() => setUsuariosAberto(true))}>
+                    Usuários {pendentes > 0 && <span className="badge">{pendentes}</span>}
+                  </button>
+                )}
+                {ehAdmin && <button role="menuitem" onClick={() => abrirMenu(() => setBackupAberto(true))}>Backup e exportação</button>}
+                <div className="menu-sep" />
+                <button role="menuitem" className="sair" onClick={() => { setMenuAberto(false); salvarTudoAgora(); supabase.auth.signOut(); }}>Sair</button>
+              </div>
+            )}
+          </div>
+
+          {tela === "quadro" && (
+            <div className="search">
+              <IcSearch />
+              <input type="search" placeholder="Buscar nome, empresa ou telefone" aria-label="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} />
+            </div>
+          )}
+          <div className="spacer" />
+          <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
+        </div>
+
+        {tela === "quadro" && (
+          <div className="hrow">
+            <div className="chips" role="group" aria-label="Filtros">
+              {[["todos", "Todos"], ["whatsapp", "WhatsApp"], ["email", "E-mail"], ["atrasados", "Ações atrasadas"]].map(([id, t]) => (
+                <button key={id} className="chip" aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{t}</button>
+              ))}
+            </div>
+            <div className="spacer" />
+            <select className="fsel" aria-label="Filtrar por produto" value={fprod} onChange={(e) => setFprod(e.target.value)}>
+              <option value="">Todos os produtos</option>
+              {[...fornecedores, { id: null, nome: "Sem fornecedor" }].map((f) => {
+                const ps = produtos.filter((p) => (p.fornecedor_id || null) === f.id).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+                return ps.length ? <optgroup key={f.id || "sem"} label={f.nome}>{ps.map((p) => <option key={p.id} value={p.id}>{p.nome || "Sem nome"}</option>)}</optgroup> : null;
+              })}
+            </select>
+            {ehAdmin && (
+              <select className="fsel" aria-label="Filtrar por responsável" value={fresp} onChange={(e) => setFresp(e.target.value)}>
+                <option value="">Todos os responsáveis</option>
+                {pessoas.filter((p) => p.status === "ativo").map((p) => <option key={p.user_id} value={p.user_id}>{p.nome || p.email}</option>)}
+              </select>
+            )}
+          </div>
         )}
-        {ehAdmin && <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(false); setBackupAberto(true); }}>Backup</button>}
-        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setBackupAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
-        {ehAdmin && <button className={"btn" + (tela === "catalogo" ? " ativo-tela" : "")} onClick={() => { fechar(); setTela(tela === "catalogo" ? "quadro" : "catalogo"); }}>{tela === "catalogo" ? "Quadro" : "Catálogo"}</button>}
-        <button className="btn" onClick={() => { fechar(); setLixeiraAberta(true); }}>Lixeira</button>
-        <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
-        <button className="btn ghost" onClick={() => { salvarTudoAgora(); supabase.auth.signOut(); }} title={sessao.user.email}>Sair</button>
       </header>
 
       {tela === "catalogo" ? (

@@ -233,3 +233,21 @@ header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var
 .toast{z-index:40}
 button.marca{border:0;background:none;padding:4px 6px;margin-left:-6px;border-radius:8px;cursor:pointer;color:inherit}
 button.marca:hover{background:var(--surface-2)}
+
+/* Cabeçalho em duas linhas + menu principal */
+header{flex-direction:column;align-items:stretch;gap:10px}
+.hrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px}
+.hrow .search{max-width:420px}
+.menu-wrap{position:relative}
+.menu-btn{padding:8px 10px;position:relative}
+.menu-btn.aberto{border-color:var(--gold);color:var(--gold)}
+.menu-badge{position:absolute;top:-6px;right:-6px}
+.menu{position:absolute;top:calc(100% + 6px);left:0;min-width:290px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 16px 50px rgba(0,0,0,.5);padding:6px;z-index:25}
+.menu button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:9px 12px;border-radius:6px;cursor:pointer;font-size:15px}
+.menu button:hover,.menu button:focus-visible{background:var(--brand-soft)}
+.menu button.atual{color:var(--gold);font-weight:600}
+.menu button.sair{color:var(--danger)}
+.menu-sep{height:1px;background:var(--line);margin:6px 4px}
+.menu-user{padding:8px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;display:flex;flex-direction:column;gap:2px}
+.menu-user .muted{font-size:12px}
+@media (max-width:640px){.hrow .search{max-width:none;flex-basis:100%;order:3}}
