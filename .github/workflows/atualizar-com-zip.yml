@@ -1,0 +1,46 @@
+# Atualiza o projeto a partir de um arquivo .zip enviado para a raiz do repositório.
+# Uso: Add file → Upload files → arraste o .zip (sem descompactar) → Commit changes.
+# O zip precisa ter o package.json na raiz (ou dentro de uma única pasta).
+# Tudo do projeto é substituído pelo conteúdo do zip, menos as pastas .git e .github.
+
+name: Atualizar projeto com zip
+
+on:
+  push:
+    branches: [main]
+    paths: ["*.zip"]
+
+permissions:
+  contents: write
+
+jobs:
+  extrair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrair e substituir
+        run: |
+          set -e
+          ZIP=$(ls -t *.zip | head -1)
+          echo "Arquivo recebido: $ZIP"
+          rm -rf /tmp/novo && mkdir /tmp/novo
+          unzip -q "$ZIP" -d /tmp/novo
+          ITENS=$(ls -A /tmp/novo)
+          if [ "$(echo "$ITENS" | wc -l)" -eq 1 ] && [ -d "/tmp/novo/$ITENS" ]; then SRC="/tmp/novo/$ITENS"; else SRC=/tmp/novo; fi
+          if [ ! -f "$SRC/package.json" ]; then
+            echo "::error::O zip não tem package.json. Nada foi alterado."
+            exit 1
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+          rm -rf "$SRC/.git" "$SRC/.github" "$SRC/node_modules" "$SRC/.next"
+          cp -a "$SRC"/. .
+          git status --short
+
+      - name: Salvar no GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Atualiza o projeto a partir do zip" || echo "Nada mudou"
+          git push
