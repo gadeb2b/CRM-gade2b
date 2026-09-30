@@ -55,7 +55,8 @@ export default function Login() {
   return (
     <div className="login">
       <form onSubmit={enviar}>
-        <h1>CRM Gade2B</h1>
+        <img className="logo-login" src="/logo-gade2b.png" alt="Gade2B" />
+        <p className="sub">CRM de vendas</p>
         {modo === "recuperar" ? <p className="muted" style={{ margin: 0 }}>Informe seu e-mail para receber um link de nova senha.</p> : (
         <div className="tabs" role="tablist" style={{ padding: 0 }}>
           <button type="button" className="tab" role="tab" aria-selected={modo === "entrar"} onClick={() => trocar("entrar")}>Entrar</button>

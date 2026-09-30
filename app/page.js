@@ -49,6 +49,7 @@ export default function Home() {
     return (
       <div className="login">
         <div className="aviso-box">
+          <img className="logo-login" src="/logo-gade2b.png" alt="Gade2B" style={{ width: 120 }} />
           <h1>{titulo}</h1>
           <p>{texto}</p>
           <p className="muted">Conta: {sessao.user.email}</p>

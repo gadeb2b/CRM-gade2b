@@ -24,6 +24,7 @@ export default function NovaSenha({ concluir }) {
   return (
     <div className="login">
       <form onSubmit={salvar}>
+        <img className="logo-login" src="/logo-gade2b.png" alt="Gade2B" style={{ width: 120 }} />
         <h1>Nova senha</h1>
         <p className="muted" style={{ margin: 0 }}>Escolha uma nova senha para entrar no CRM.</p>
         <div className="field">

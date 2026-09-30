@@ -2,6 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "CRM Gade2B",
+  applicationName: "CRM Gade2B",
   description: "CRM de vendas da Gade2B",
 };
 
@@ -9,6 +10,7 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#0C1511",
 };
 
 export default function RootLayout({ children }) {

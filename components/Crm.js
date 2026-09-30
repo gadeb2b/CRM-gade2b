@@ -351,7 +351,12 @@ export default function Crm({ sessao, perfil }) {
   return (
     <div className="app">
       <header>
-        <h1>Vendas</h1>
+        <div className="marca">
+          <img src="/logo-icone.png" alt="" />
+          <img src="/logo-texto.png" alt="gade2b" style={{ height: 22 }} />
+          <span className="sep" />
+          <span className="mod">CRM</span>
+        </div>
         <div className="search">
           <IcSearch />
           <input type="search" placeholder="Buscar nome, empresa ou telefone" aria-label="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} />
@@ -388,10 +393,9 @@ export default function Crm({ sessao, perfil }) {
           {ABERTAS.map((id) => {
             const e = ETAPAS.find((x) => x.id === id);
             const v = abertos.filter((d) => d.etapa === id).reduce((s, d) => s + (+d.valor || 0), 0);
-            const claro = id === "novo" || id === "contato";
             return (
               <button key={id} className="seg" title={`${e.nome}: ${brl.format(v)}`}
-                style={{ flexGrow: Math.max(v, totalAberto * 0.02) || 1, background: e.cor, color: claro ? "var(--ink)" : "#fff" }}
+                style={{ flexGrow: Math.max(v, totalAberto * 0.02) || 1, background: e.cor, color: "var(--ink)" }}
                 onClick={() => document.querySelector(`.col[data-etapa="${id}"]`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })}>
                 <span>{e.nome} · {brl.format(v)}</span>
               </button>
