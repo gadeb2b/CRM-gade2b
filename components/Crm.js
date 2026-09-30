@@ -8,6 +8,7 @@ import Painel from "./Painel";
 import Config from "./Config";
 import Usuarios from "./Usuarios";
 import Backup from "./Backup";
+import Catalogo from "./Catalogo";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcSliders } from "./Icon";
 
 export default function Crm({ sessao, perfil }) {
@@ -31,6 +32,8 @@ export default function Crm({ sessao, perfil }) {
   const [filtro, setFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
   const [fprod, setFprod] = useState("");
+  const [fornecedores, setFornecedores] = useState([]);
+  const [tela, setTela] = useState("quadro");
   const [abertoId, setAbertoId] = useState(null);
   const [focoNome, setFocoNome] = useState(false);
   const [cfgAberto, setCfgAberto] = useState(false);
@@ -83,15 +86,16 @@ export default function Crm({ sessao, perfil }) {
     if (iniciou.current) return;
     iniciou.current = true;
     (async () => {
-      const [n, np, p, t, m, c] = await Promise.all([
+      const [n, np, p, t, m, c, fo] = await Promise.all([
         supabase.from("negocios").select("*").order("criado_em", { ascending: false }),
         supabase.from("negocio_produtos").select("negocio_id,produto_id"),
         supabase.from("produtos").select("*").order("criado_em"),
         supabase.from("tipos_mensagem").select("*").order("ordem"),
         supabase.from("modelos_produto").select("*"),
         supabase.from("configuracoes").select("*").maybeSingle(),
+        supabase.from("fornecedores").select("*").order("nome"),
       ]);
-      const falha = [n, np, p, t, m, c].find((r) => r.error);
+      const falha = [n, np, p, t, m, c, fo].find((r) => r.error);
       if (falha) { setErroCarga(falha.error.message); return; }
 
       let tiposRows = t.data;
@@ -109,6 +113,7 @@ export default function Crm({ sessao, perfil }) {
 
       setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [] })));
       setProdutos(p.data.map((x) => ({ ...x, preco: Number(x.preco) || 0 })));
+      setFornecedores(fo.data);
       setTipos(tiposRows);
       setModelos(mm);
       setAssinatura(c.data?.assinatura || "");
@@ -124,7 +129,7 @@ export default function Crm({ sessao, perfil }) {
   }, [ehAdmin]);
   useEffect(() => { carregarPessoas(); }, [carregarPessoas]);
 
-  const ctx = useMemo(() => ({ produtos, tipos, modelos, assinatura }), [produtos, tipos, modelos, assinatura]);
+  const ctx = useMemo(() => ({ produtos, tipos, modelos, assinatura, fornecedores }), [produtos, tipos, modelos, assinatura, fornecedores]);
 
   /* ---------- Negócios ---------- */
   const atualizarNegocio = useCallback((id, patch) => {
@@ -249,11 +254,47 @@ export default function Crm({ sessao, perfil }) {
 
   /* ---------- Produtos, tipos e remetente ---------- */
   const cfg = {
-    addProduto: async () => {
-      const { data, error } = await supabase.from("produtos").insert({ nome: "Novo produto" }).select().single();
+    addProduto: async (extra = {}) => {
+      const { data, error } = await supabase.from("produtos").insert({ nome: "", ...extra }).select().single();
       if (error) { toast(error.message); return null; }
       setProdutos((ps) => [...ps, { ...data, preco: Number(data.preco) || 0 }]);
       return data.id;
+    },
+    addProdutosEmLote: async (itens) => {
+      const { data, error } = await supabase.from("produtos").insert(itens).select();
+      if (error) { toast("Não foi possível adicionar: " + error.message); return false; }
+      setProdutos((ps) => [...ps, ...data.map((x) => ({ ...x, preco: Number(x.preco) || 0 }))]);
+      toast(`${data.length} produto(s) adicionado(s)`);
+      return true;
+    },
+    duplicarProduto: async (p) => {
+      const { id, criado_em, user_id, ...copia } = p;
+      const { data, error } = await supabase.from("produtos").insert({ ...copia, nome: p.nome + " (cópia)" }).select().single();
+      if (error) { toast(error.message); return; }
+      setProdutos((ps) => [...ps, { ...data, preco: Number(data.preco) || 0 }]);
+      toast("Produto duplicado");
+    },
+    addFornecedor: async (nome) => {
+      const { data, error } = await supabase.from("fornecedores").insert({ nome }).select().single();
+      if (error) { toast(error.message); return null; }
+      setFornecedores((fs) => [...fs, data].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+      return data.id;
+    },
+    updFornecedor: (id, patch) => {
+      setFornecedores((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+      salvarDepois("fornecedores", id, patch);
+    },
+    delFornecedor: async (id) => {
+      const f = fornecedores.find((x) => x.id === id);
+      const n = produtos.filter((p) => p.fornecedor_id === id).length;
+      if (!confirm(`Excluir o fornecedor “${f?.nome}”?${n ? ` Os ${n} produto(s) dele continuam cadastrados, mas ficam sem fornecedor.` : ""}`)) return false;
+      delete pend.current["fornecedores:" + id];
+      const { error } = await supabase.from("fornecedores").delete().eq("id", id);
+      if (error) { toast(error.message); return false; }
+      setFornecedores((fs) => fs.filter((x) => x.id !== id));
+      setProdutos((ps) => ps.map((p) => (p.fornecedor_id === id ? { ...p, fornecedor_id: null } : p)));
+      toast("Fornecedor excluído");
+      return true;
     },
     updProduto: (id, patch) => {
       setProdutos((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -261,7 +302,7 @@ export default function Crm({ sessao, perfil }) {
     },
     delProduto: async (id) => {
       const p = produtos.find((x) => x.id === id);
-      if (!confirm(`Excluir “${p?.nome}”? Ele será retirado dos negócios em que aparece.`)) return;
+      if (!confirm(`Excluir “${p?.nome || "produto sem nome"}”? Ele será retirado dos negócios em que aparece. Se quiser só tirar da lista, desmarque “Ativo”.`)) return;
       delete pend.current["produtos:" + id];
       const { error } = await supabase.from("produtos").delete().eq("id", id);
       if (error) { toast(error.message); return; }
@@ -357,13 +398,17 @@ export default function Crm({ sessao, perfil }) {
           <span className="sep" />
           <span className="mod">CRM</span>
         </div>
+        {tela === "quadro" && <>
         <div className="search">
           <IcSearch />
           <input type="search" placeholder="Buscar nome, empresa ou telefone" aria-label="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <select className="fsel" aria-label="Filtrar por produto" value={fprod} onChange={(e) => setFprod(e.target.value)}>
           <option value="">Todos os produtos</option>
-          {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          {[...fornecedores, { id: null, nome: "Sem fornecedor" }].map((f) => {
+            const ps = produtos.filter((p) => (p.fornecedor_id || null) === f.id).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+            return ps.length ? <optgroup key={f.id || "sem"} label={f.nome}>{ps.map((p) => <option key={p.id} value={p.id}>{p.nome || "Sem nome"}</option>)}</optgroup> : null;
+          })}
         </select>
         {ehAdmin && (
           <select className="fsel" aria-label="Filtrar por responsável" value={fresp} onChange={(e) => setFresp(e.target.value)}>
@@ -376,6 +421,7 @@ export default function Crm({ sessao, perfil }) {
             <button key={id} className="chip" aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{t}</button>
           ))}
         </div>
+        </>}
         <div className="spacer" />
         {ehSuper && (
           <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setBackupAberto(false); setUsuariosAberto(true); }}>
@@ -383,11 +429,15 @@ export default function Crm({ sessao, perfil }) {
           </button>
         )}
         {ehAdmin && <button className="btn" onClick={() => { setAbertoId(null); setCfgAberto(false); setUsuariosAberto(false); setBackupAberto(true); }}>Backup</button>}
-        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setBackupAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Produtos e mensagens" : "Minha assinatura"}</button>
+        <button className="btn" onClick={() => { setAbertoId(null); setUsuariosAberto(false); setBackupAberto(false); setCfgAberto(true); }}><IcSliders />{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
+        {ehAdmin && <button className={"btn" + (tela === "catalogo" ? " ativo-tela" : "")} onClick={() => { fechar(); setTela(tela === "catalogo" ? "quadro" : "catalogo"); }}>{tela === "catalogo" ? "Quadro" : "Catálogo"}</button>}
         <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
         <button className="btn ghost" onClick={() => { salvarTudoAgora(); supabase.auth.signOut(); }} title={sessao.user.email}>Sair</button>
       </header>
 
+      {tela === "catalogo" ? (
+        <Catalogo fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} cfg={cfg} voltar={() => setTela("quadro")} />
+      ) : <>
       <section className="funnel" aria-label="Valor em aberto por etapa">
         <div className="funnel-bar">
           {ABERTAS.map((id) => {
@@ -410,7 +460,7 @@ export default function Crm({ sessao, perfil }) {
         </div>
       </section>
 
-      {!negocios.length && <p className="hint">Comece em “Produtos e mensagens” para cadastrar o que você vende, depois clique em “Novo lead”.</p>}
+      {!negocios.length && <p className="hint">Comece pelo “Catálogo” para cadastrar fornecedores e produtos, depois clique em “Novo lead”.</p>}
 
       <main className="board">
         {ETAPAS.map((e) => {
@@ -433,6 +483,7 @@ export default function Crm({ sessao, perfil }) {
           );
         })}
       </main>
+      </>}
 
       <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto ? " open" : "")} onClick={fechar} />
 
@@ -463,7 +514,7 @@ export default function Crm({ sessao, perfil }) {
           fechar={fechar} toast={toast}
         />
       )}
-      {cfgAberto && <Config produtos={produtos} tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
+      {cfgAberto && <Config tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
       {backupAberto && <Backup fechar={fechar} toast={toast} />}
       {usuariosAberto && <Usuarios pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 

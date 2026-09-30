@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, CNAES } from "../lib/constantes";
 import { fmtData, temTel, temMail, waLink, mailLink, soDigitos, cnpjValido, formatarCnpj } from "../lib/util";
@@ -182,13 +182,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
         <datalist id="cnaes">{CNAES.map((c) => <option key={c[0]} value={c[0] + " – " + c[1]} />)}</datalist>
 
         <h3>Produtos oferecidos</h3>
-        <div className="pchips" role="group" aria-label="Produtos">
-          {ctx.produtos.length ? ctx.produtos.map((p) => (
-            <button key={p.id} className="stage-btn" aria-pressed={d.produtos.includes(p.id)} onClick={() => toggleProduto(p.id)}>
-              {p.nome} <span className="muted">{precoTxt(p)}</span>
-            </button>
-          )) : <span className="muted">Nenhum produto cadastrado. Cadastre em “Produtos e mensagens”.</span>}
-        </div>
+        <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} />
         <div className="grid" style={{ marginTop: 12 }}>
           <div className="field"><label htmlFor="f-val">Valor do negócio (R$)</label><input id="f-val" type="number" min="0" step="0.01" {...campo("valor", { num: true })} /></div>
           <div className="field"><label htmlFor="f-canal">Canal principal</label>
@@ -262,5 +256,70 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
         <button className="btn primary" onClick={concluir || fechar} disabled={criando}>{criando ? "Salvando…" : "Concluir"}</button>
       </div>
     </aside>
+  );
+}
+
+// Escolha de produtos com busca, agrupada por fornecedor (pensada para catálogos grandes)
+function SeletorProdutos({ d, produtos, fornecedores, toggle }) {
+  const [q, setQ] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const fechar = useRef(null);
+  const selecionados = prodsDe(d, produtos);
+  const nomeForn = (id) => fornecedores.find((f) => f.id === id)?.nome || "";
+
+  const grupos = useMemo(() => {
+    const termo = q.trim().toLowerCase();
+    const livres = produtos.filter((p) => p.ativo !== false && !d.produtos.includes(p.id) &&
+      (!termo || (p.nome + " " + (p.categoria || "") + " " + nomeForn(p.fornecedor_id)).toLowerCase().includes(termo)));
+    const mapa = new Map();
+    livres.sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR", { numeric: true }))
+      .forEach((p) => { const k = nomeForn(p.fornecedor_id) || "Sem fornecedor"; if (!mapa.has(k)) mapa.set(k, []); mapa.get(k).push(p); });
+    return [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, produtos, d.produtos, fornecedores]);
+
+  const total = grupos.reduce((s, g) => s + g[1].length, 0);
+
+  return (
+    <div className="seletor">
+      {selecionados.length > 0 && (
+        <div className="pchips" style={{ marginBottom: 8 }}>
+          {selecionados.map((p) => (
+            <span key={p.id} className="stage-btn sel-chip">
+              {p.nome} <span className="muted">{precoTxt(p)}</span>
+              <button type="button" onClick={() => toggle(p.id)} aria-label={"Remover " + p.nome}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {!produtos.length ? <span className="muted">Nenhum produto cadastrado. Cadastre no Catálogo.</span> : (
+        <div className="seletor-caixa"
+          onFocus={() => { clearTimeout(fechar.current); setAberto(true); }}
+          onBlur={() => { fechar.current = setTimeout(() => setAberto(false), 150); }}>
+          <input placeholder="+ Adicionar produto: digite o nome, categoria ou fornecedor" value={q}
+            onChange={(e) => { setQ(e.target.value); setAberto(true); }}
+            onKeyDown={(e) => { if (e.key === "Escape") { setAberto(false); e.stopPropagation(); } }}
+            aria-label="Buscar produto para adicionar" />
+          {aberto && (
+            <div className="seletor-lista" role="listbox">
+              {!total && <div className="muted" style={{ padding: 10 }}>Nenhum produto encontrado.</div>}
+              {grupos.map(([forn, ps]) => (
+                <div key={forn}>
+                  <div className="seletor-grupo">{forn}</div>
+                  {ps.slice(0, 80).map((p) => (
+                    <button type="button" key={p.id} className="seletor-item" role="option" aria-selected="false"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { toggle(p.id); setQ(""); }}>
+                      <span>{p.nome || "Sem nome"}{p.categoria ? <span className="muted"> · {p.categoria}</span> : null}</span>
+                      <span className="muted">{precoTxt(p)}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

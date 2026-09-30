@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ETAPAS, VARS } from "../lib/constantes";
-import { precoTxt } from "../lib/mensagens";
 import { IcX } from "./Icon";
 
 function Vars() {
@@ -13,65 +12,29 @@ function Vars() {
   );
 }
 
-export default function Config({ produtos, tipos, modelos, assinatura, cfg, fechar, podeEditar }) {
-  const [aba, setAba] = useState(podeEditar ? "produtos" : "remetente");
+export default function Config({ tipos, assinatura, cfg, fechar, podeEditar }) {
+  const [aba, setAba] = useState(podeEditar ? "tipos" : "remetente");
   const [abertoItem, setAbertoItem] = useState(null);
   const fecharRef = useRef(null);
   useEffect(() => { fecharRef.current?.focus(); }, []);
 
-  async function novoProduto() { const id = await cfg.addProduto(); if (id) setAbertoItem(id); }
   async function novoTipo() { const id = await cfg.addTipo(); if (id) setAbertoItem(id); }
 
   return (
     <aside className="drawer wide open" aria-labelledby="c-title">
       <div className="d-head">
-        <h2 id="c-title">{podeEditar ? "Produtos e mensagens" : "Minha assinatura"}</h2>
+        <h2 id="c-title">{podeEditar ? "Mensagens" : "Minha assinatura"}</h2>
         <button className="btn ghost" ref={fecharRef} onClick={fechar} aria-label="Fechar configurações"><IcX /></button>
       </div>
       <div className="tabs" role="tablist">
-        {(podeEditar ? [["produtos", "Produtos"], ["tipos", "Tipos de mensagem"], ["remetente", "Remetente"]] : [["remetente", "Remetente"]]).map(([id, n]) => (
+        {(podeEditar ? [["tipos", "Tipos de mensagem"], ["remetente", "Remetente"]] : [["remetente", "Remetente"]]).map(([id, n]) => (
           <button key={id} className="tab" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}>{n}</button>
         ))}
       </div>
       <div className="d-body">
-        {aba === "produtos" && (
-          <>
-            <p className="muted" style={{ marginTop: 0 }}>Cadastre o que você vende. A oferta e os segmentos ideais alimentam os modelos e a geração com IA.</p>
-            {produtos.map((p) => (
-              <details key={p.id} className="item" open={abertoItem === p.id} onToggle={(e) => { if (e.currentTarget.open) setAbertoItem(p.id); else if (abertoItem === p.id) setAbertoItem(null); }}>
-                <summary><b>{p.nome || "Produto sem nome"}</b><span className="muted">{precoTxt(p)}</span></summary>
-                <div className="inner">
-                  <div className="grid" style={{ marginTop: 12 }}>
-                    <div className="field full"><label>Nome do produto</label><input value={p.nome} onChange={(e) => cfg.updProduto(p.id, { nome: e.target.value })} autoFocus={abertoItem === p.id && p.nome === "Novo produto"} /></div>
-                    <div className="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" value={p.preco} onChange={(e) => cfg.updProduto(p.id, { preco: Number(e.target.value) || 0 })} /></div>
-                    <div className="field"><label>Cobrança</label>
-                      <select value={p.cobranca} onChange={(e) => cfg.updProduto(p.id, { cobranca: e.target.value })}>
-                        <option value="unico">Pagamento único</option><option value="mensal">Mensal</option>
-                      </select>
-                    </div>
-                    <div className="field full"><label>Oferta: o que o cliente recebe</label><textarea value={p.oferta} onChange={(e) => cfg.updProduto(p.id, { oferta: e.target.value })} /></div>
-                    <div className="field full"><label>Segmentos ideais</label><input placeholder="Ex.: clínicas, salões, academias" value={p.segmentos} onChange={(e) => cfg.updProduto(p.id, { segmentos: e.target.value })} /></div>
-                  </div>
-                  <h4>Mensagens específicas deste produto</h4>
-                  <p className="muted" style={{ margin: 0 }}>Opcional. Quando o negócio tem só este produto, estes textos substituem o modelo padrão do tipo. Em branco, vale o modelo padrão.</p>
-                  <Vars />
-                  {tipos.map((t) => (
-                    <div key={t.id} className="field" style={{ marginBottom: 10 }}>
-                      <label>{t.nome}</label>
-                      <textarea placeholder={`Em branco: usa o modelo padrão de “${t.nome}”`} value={modelos[p.id + ":" + t.id] || ""} onChange={(e) => cfg.setModelo(p.id, t.id, e.target.value)} />
-                    </div>
-                  ))}
-                  <button className="btn danger small" onClick={() => cfg.delProduto(p.id)}>Excluir produto</button>
-                </div>
-              </details>
-            ))}
-            <button className="btn" onClick={novoProduto}>+ Adicionar produto</button>
-          </>
-        )}
-
         {aba === "tipos" && (
           <>
-            <p className="muted" style={{ marginTop: 0 }}>Cada tipo tem um objetivo (usado pela IA) e um modelo padrão com variáveis. Marque em quais etapas ele é sugerido automaticamente.</p>
+            <p className="muted" style={{ marginTop: 0 }}>Cada tipo tem um objetivo (usado pela IA) e um modelo padrão com variáveis. Marque em quais etapas ele é sugerido automaticamente. As mensagens específicas de cada produto ficam no Catálogo, no botão “Mensagens” da linha do produto.</p>
             {tipos.map((t) => (
               <details key={t.id} className="item" open={abertoItem === t.id} onToggle={(e) => { if (e.currentTarget.open) setAbertoItem(t.id); else if (abertoItem === t.id) setAbertoItem(null); }}>
                 <summary><b>{t.nome}</b><span className="muted">{t.etapas.map((e) => ETAPAS.find((x) => x.id === e)?.nome).filter(Boolean).join(", ") || "Nenhuma etapa"}</span></summary>

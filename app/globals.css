@@ -178,3 +178,51 @@ header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var
 .login .sub{text-align:center;color:var(--muted);margin:-4px 0 6px;font-size:14px}
 .card:hover{border-color:#3a5446;border-left-color:var(--ch)}
 .col{background:var(--surface-2)}
+
+/* Catálogo em planilha */
+.btn.ativo-tela{border-color:var(--gold);color:var(--gold)}
+.catalogo{flex:1;min-height:0;display:flex;gap:0;border-top:1px solid var(--line)}
+.cat-lado{width:260px;flex:none;border-right:1px solid var(--line);padding:14px;overflow-y:auto;background:var(--surface)}
+.cat-lado h2{font-size:15px;margin:14px 0 8px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.cat-lado h3{font-size:14px;margin:0 0 10px}
+.cat-forn{display:flex;justify-content:space-between;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--ink)}
+.cat-forn span{color:var(--muted);font-size:13px}
+.cat-forn:hover{background:var(--surface-2)}
+.cat-forn.ativo{background:var(--brand-soft);font-weight:600}
+.cat-novo{display:flex;gap:6px;margin-top:10px}
+.cat-novo input{flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:var(--surface-2)}
+.cat-dados{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.cat-main{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 18px}
+.cat-barra{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.cat-barra h2{margin:0 8px 0 0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:22px}
+.cat-check{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.planilha-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.planilha{border-collapse:collapse;width:100%;font-size:14px}
+.planilha th{position:sticky;top:0;z-index:1;background:var(--surface-2);text-align:left;font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap}
+.planilha td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;vertical-align:middle}
+.planilha.leitura td{padding:6px 10px}
+.planilha tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+.planilha tr:hover td{background:var(--surface-2)}
+.planilha tr.inativo td{opacity:.5}
+.planilha .cel{width:100%;border:0;background:transparent;padding:8px 10px;color:var(--ink);border-radius:0;min-width:0}
+.planilha .cel:focus{outline:2px solid var(--gold);outline-offset:-2px;background:var(--bg)}
+.planilha select.cel{cursor:pointer}
+.planilha select.cel option{background:var(--surface)}
+.planilha .num{text-align:right;font-variant-numeric:tabular-nums}
+.planilha .centro{text-align:center}
+.planilha .acoes{white-space:nowrap;padding:0 4px}
+.planilha .acoes .btn{padding:4px 8px;font-size:13px}
+.cat-rodape{margin:8px 0 0}
+.col-area{width:100%;min-height:160px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow:auto}
+
+/* Seletor de produtos no negócio */
+.seletor-caixa{position:relative}
+.seletor-caixa input{width:100%;border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:var(--surface)}
+.seletor-lista{position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:300px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.45);z-index:5}
+.seletor-grupo{position:sticky;top:0;background:var(--surface-2);padding:6px 10px;font-size:12px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.04em}
+.seletor-item{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:none;padding:8px 12px;cursor:pointer;color:var(--ink)}
+.seletor-item:hover,.seletor-item:focus{background:var(--brand-soft)}
+.sel-chip{background:var(--brand-soft);border-color:var(--brand);cursor:default}
+.sel-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 4px}
+.sel-chip button:hover{color:var(--danger)}
+@media (max-width:760px){.catalogo{flex-direction:column}.cat-lado{width:auto;border-right:0;border-bottom:1px solid var(--line)}}
