@@ -226,3 +226,8 @@ header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,var
 .sel-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 4px}
 .sel-chip button:hover{color:var(--danger)}
 @media (max-width:760px){.catalogo{flex-direction:column}.cat-lado{width:auto;border-right:0;border-bottom:1px solid var(--line)}}
+
+/* Camadas: painéis e avisos sempre por cima da planilha e do quadro */
+.scrim{z-index:20}
+.drawer{z-index:30}
+.toast{z-index:40}
