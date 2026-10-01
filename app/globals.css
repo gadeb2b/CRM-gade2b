@@ -386,3 +386,27 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 /* Os cards nunca encolhem: quando não cabem, a coluna ganha barra de rolagem */
 .cards > *{flex-shrink:0}
 .cards{overflow-y:auto;overscroll-behavior:contain}
+
+/* Menu não passa da tela */
+.menu{max-height:calc(100vh - 110px);overflow-y:auto}
+
+/* Ações no título das colunas */
+.col-title{min-width:0}
+.col-title .col-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.col-acoes{display:flex;gap:4px;margin-left:6px}
+.col-btn{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.col-btn:hover{color:var(--ink);border-color:var(--brand);background:var(--brand-soft)}
+
+/* Importação */
+.imp-passos{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.imp-passos span{padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
+.imp-passos .atual{border-color:var(--gold);color:var(--ink);font-weight:600}
+.imp-passos .feito{border-color:var(--brand);color:var(--brand)}
+.imp-arquivo{display:flex;flex-direction:column;align-items:center;gap:4px;border:2px dashed var(--line);border-radius:12px;padding:28px;cursor:pointer;background:var(--surface-2)}
+.imp-arquivo:hover{border-color:var(--brand)}
+.imp-ex{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+.imp-opcoes{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.imp-progresso{position:relative;height:30px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;margin-top:12px}
+.imp-progresso div{position:absolute;inset:0 auto 0 0;background:var(--brand-soft);transition:width .3s}
+.imp-progresso span{position:relative;display:block;text-align:center;line-height:28px;font-size:13px}
+.imp-tels span{display:block;white-space:nowrap}

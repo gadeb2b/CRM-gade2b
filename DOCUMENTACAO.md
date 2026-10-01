@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 23 (01/10/2026).
+Última atualização: versão 24 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -57,7 +57,7 @@ Depois de criar ou alterar variáveis, faça **Redeploy** (variáveis `NEXT_PUBL
 
 ## 4. Estrutura do código
 
-Stack: **Next.js 16** (App Router, JavaScript) + **Supabase** (`@supabase/supabase-js`) + **write-excel-file** para planilhas.
+Stack: **Next.js 16** (App Router, JavaScript) + **Supabase** (`@supabase/supabase-js`) + **write-excel-file** e **read-excel-file** para planilhas.
 
 ```
 app/
@@ -74,6 +74,7 @@ components/
   Crm.js            Tela principal: cabeçalho, menu, quadro, funil, carga e gravação de dados
   Painel.js         Painel do negócio (dados, CNPJ, contatos, produtos com quantidade, mensagem, histórico)
   ContatosEditor.js Contatos do negócio, telefones, número principal e consulta de operadora
+  ImportarLeads.js  Importação de leads de planilha (.xlsx, .csv ou texto colado)
   Login.js          Entrar, solicitar acesso (só com convite) e esqueci minha senha
   NovaSenha.js      Formulário de nova senha
   Catalogo.js       Catálogo em planilha: fornecedores, produtos, comissões, colar do Excel
@@ -198,6 +199,13 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 - Operadora: o botão "Consultar operadora" copia o número e abre o site da ABR Telecom (gratuito, com captcha); depois é só clicar na operadora que apareceu. Fica salva com a data da consulta (aviso quando passa de 6 meses). O quadro filtra por operadora.
 - A consulta de CNPJ adiciona o telefone e o e-mail da Receita aos contatos, marcados "da Receita" (costumam ser do contador).
 
+### Importação de leads
+
+- Menu ☰ → Importar leads, ou o botão ⤒ no título de cada coluna do quadro (importa direto naquela etapa). O botão + ao lado cria um lead naquela etapa.
+- Aceita .xlsx, .csv ou linhas coladas do Excel/Google Sheets. O sistema reconhece as colunas pelo nome (nome, empresa, CNPJ, contato, cargo, e-mail, até 3 telefones, cidade, UF, CNAE, valor, observação) e você corrige o que precisar.
+- Opções: etapa inicial, responsável (admins podem dividir igualmente entre a equipe), produto para todos, converter MAIÚSCULAS em "Nome Próprio" e pular duplicados (mesmo CNPJ ou telefone já existente ou repetido na planilha).
+- Cada lead importado ganha um contato com os telefones (o primeiro vira principal) e o histórico "Importado da planilha …"; a coluna de observação entra como anotação.
+
 ### Etapas
 
 - Cada empresa tem as suas; as etapas de andamento podem ser renomeadas, criadas, reordenadas e excluídas (com destino para os negócios).
@@ -282,7 +290,6 @@ O login reconhece a empresa pelo domínio ou pelo link de convite e mostra a mar
 
 Desenvolvimento:
 
-- Importar a planilha de contatos atual (falta ver o formato da planilha).
 - Consulta automática de operadora por API paga (ex.: BigDataCorp, cerca de R$ 0,26 por consulta), se o volume justificar.
 - Fila de disparos do WhatsApp (links wa.me, com limite diário, intervalo e "não quer receber").
 - "Alterar minha senha" dentro do sistema.
@@ -321,3 +328,4 @@ Do lado do negócio:
 | v21 | Documentação do projeto |
 | v22 | Vários contatos e telefones por negócio, operadora de cada número, card com tamanho fixo |
 | v23 | Correção: cards não encolhem mais; colunas cheias ganham barra de rolagem |
+| v24 | Importação de leads por planilha; botões de novo lead e importar em cada coluna; menu com rolagem |

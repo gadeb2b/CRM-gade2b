@@ -16,7 +16,20 @@ import Plataforma from "./Plataforma";
 import MinhaEmpresa from "./MinhaEmpresa";
 import EtapasEditor from "./EtapasEditor";
 import { OPERADORAS } from "./ContatosEditor";
+import ImportarLeads from "./ImportarLeads";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcMenu } from "./Icon";
+
+// Busca todas as linhas de uma consulta, de 1000 em 1000 (limite do Supabase por chamada)
+async function buscarTodos(consulta) {
+  const todas = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await consulta(de, de + 999);
+    if (error) return { data: null, error };
+    todas.push(...data);
+    if (data.length < 1000) break;
+  }
+  return { data: todas, error: null };
+}
 
 // Soma preço × quantidade dos produtos do negócio
 function valorDe(lista, qtd, produtos) {
@@ -45,6 +58,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const [busca, setBusca] = useState("");
   const [fprod, setFprod] = useState("");
   const [foper, setFoper] = useState("");
+  const [importar, setImportar] = useState(null);
   const [contatosMap, setContatosMap] = useState({});
   const contatosMapRef = useRef({});
   contatosMapRef.current = contatosMap;
@@ -105,21 +119,19 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   }, [salvarTudoAgora]);
 
   /* ---------- Carga inicial ---------- */
-  useEffect(() => {
-    if (iniciou.current) return;
-    iniciou.current = true;
-    (async () => {
+  const carregarDados = useCallback(async () => {
+    {
       const [n, np, p, t, m, c, fo, et, ct, tl] = await Promise.all([
-        supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }),
-        supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade"),
+        buscarTodos((de, ate) => supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }).range(de, ate)),
+        buscarTodos((de, ate) => supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade").range(de, ate)),
         supabase.from("produtos").select("*").order("criado_em"),
         supabase.from("tipos_mensagem").select("*").order("ordem"),
         supabase.from("modelos_produto").select("*"),
         supabase.from("configuracoes").select("*").maybeSingle(),
         supabase.from("fornecedores").select("*").order("nome"),
         supabase.from("etapas").select("*").order("ordem"),
-        supabase.from("contatos").select("*").order("ordem").order("criado_em"),
-        supabase.from("telefones").select("*").order("criado_em"),
+        buscarTodos((de, ate) => supabase.from("contatos").select("*").order("ordem").order("criado_em").range(de, ate)),
+        buscarTodos((de, ate) => supabase.from("telefones").select("*").order("criado_em").range(de, ate)),
       ]);
       const falha = [n, np, p, t, m, c, fo, et, ct, tl].find((r) => r.error);
       if (falha) { setErroCarga(falha.error.message); return; }
@@ -150,9 +162,16 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       setModelos(mm);
       setAssinatura(c.data?.assinatura || "");
       setCarregado(true);
-    })();
-    fetch("/api/gerar-mensagem").then((r) => r.json()).then((j) => setIaDisponivel(!!j.disponivel)).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (iniciou.current) return;
+    iniciou.current = true;
+    carregarDados();
+    fetch("/api/gerar-mensagem").then((r) => r.json()).then((j) => setIaDisponivel(!!j.disponivel)).catch(() => {});
+  }, [carregarDados]);
 
   const carregarPessoas = useCallback(async () => {
     if (!ehAdmin) return;
@@ -242,10 +261,11 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     setLixeiraAberta(false);
     setEmpresaAberta(false);
     setEtapasAberto(false);
+    setImportar(null);
   }, [rascunho, salvarTudoAgora]);
 
   // "Novo lead" só abre um rascunho; o negócio é gravado ao clicar em Concluir.
-  const novoNegocio = useCallback(() => {
+  const novoNegocio = useCallback((etapaEscolhida) => {
     salvarTudoAgora();
     setAbertoId(null);
     setCfgAberto(false);
@@ -254,7 +274,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     setRascunho({
       id: "__novo__", user_id: userId, nome: "", empresa: "", razao_social: "", cidade: "", uf: "", situacao_cnpj: "",
       cnpj: "", cnae: "", atividade: "",
-      telefone: "", email: "", canal: "whatsapp", etapa: ABERTAS[0] || "novo", etapa_desde: hoje(),
+      telefone: "", email: "", canal: "whatsapp", etapa: (typeof etapaEscolhida === "string" && etapaEscolhida) || ABERTAS[0] || "novo", etapa_desde: hoje(),
       acao: "Fazer primeiro contato", acao_data: hoje(), motivo_perda: "", tipo_msg_id: null,
       msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods, qtd: prods.length ? { [prods[0]]: 1 } : {},
       contatos: [{ id: "tmp-c1", nome: "", cargo: "", email: "", telefones: [{ id: "tmp-t1", numero: "", etiqueta: "whatsapp", principal: true, origem: "", operadora: "", portado: false, operadora_consultada_em: null }] }],
@@ -630,10 +650,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto || importar)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, empresaAberta, etapasAberto, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, empresaAberta, etapasAberto, importar, fechar]);
 
   useEffect(() => {
     if (!menuAberto) return;
@@ -696,6 +716,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
                 <button role="menuitem" className={tela === "minhas" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("minhas"))}>Minhas comissões</button>
                 <button role="menuitem" onClick={() => abrirMenu(() => setCfgAberto(true))}>{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
                 {ehAdmin && <button role="menuitem" onClick={() => abrirMenu(() => { setTela("quadro"); setEtapasAberto(true); })}>Etapas do quadro</button>}
+                <button role="menuitem" onClick={() => abrirMenu(() => { setTela("quadro"); setImportar({ etapa: ABERTAS[0] }); })}>Importar leads</button>
                 <button role="menuitem" onClick={() => abrirMenu(() => setLixeiraAberta(true))}>Lixeira</button>
                 {(ehAdmin || ehSuper) && <div className="menu-sep" />}
                 {ehSuper && (
@@ -720,7 +741,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
             </div>
           )}
           <div className="spacer" />
-          <button className="btn primary" onClick={novoNegocio}><IcPlus />Novo lead</button>
+          <button className="btn primary" onClick={() => novoNegocio()}><IcPlus />Novo lead</button>
         </div>
 
         {tela === "quadro" && (
@@ -796,7 +817,13 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
               onDragLeave={(ev) => { if (!ev.currentTarget.contains(ev.relatedTarget)) setSobre(null); }}
               onDrop={(ev) => { ev.preventDefault(); setSobre(null); mover(ev.dataTransfer.getData("text/plain"), e.id); }}>
               <div className="col-head">
-                <div className="col-title"><span className="dot" style={{ background: e.cor }} />{e.nome}<span className="count">{lista.length}</span></div>
+                <div className="col-title">
+                  <span className="dot" style={{ background: e.cor }} /><span className="col-nome" title={e.nome}>{e.nome}</span><span className="count">{lista.length}</span>
+                  <span className="col-acoes">
+                    <button type="button" className="col-btn" title={`Novo lead em “${e.nome}”`} aria-label={`Novo lead em ${e.nome}`} onClick={() => novoNegocio(e.id)}>+</button>
+                    <button type="button" className="col-btn" title={`Importar leads para “${e.nome}”`} aria-label={`Importar leads para ${e.nome}`} onClick={() => { fechar(); setImportar({ etapa: e.id }); }}>⤒</button>
+                  </span>
+                </div>
                 <div className="col-sum">{brl.format(soma)}</div>
               </div>
               <div className="cards">
@@ -809,7 +836,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       </main>
       </>}
 
-      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto || importar ? " open" : "")} onClick={fechar} />
 
       {rascunho && (
         <Painel
@@ -846,6 +873,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
           onRestaurado={(d) => { setNegocios((ns) => [d, ...ns]); setInteracoes((m) => { const c = { ...m }; delete c[d.id]; return c; }); }} />
       )}
       {backupAberto && <Backup empresa={empresa} fechar={fechar} toast={toast} />}
+      {importar && (
+        <ImportarLeads etapaInicial={importar.etapa} produtos={produtos} pessoas={ehAdmin ? pessoas : []} ehAdmin={ehAdmin} userId={userId}
+          negocios={negocios} contatosMap={contatosMap} concluido={carregarDados} fechar={() => setImportar(null)} toast={toast} />
+      )}
       {etapasAberto && (
         <EtapasEditor etapas={etapas} fechar={fechar}
           contagem={negocios.reduce((m, d) => { m[d.etapa] = (m[d.etapa] || 0) + 1; return m; }, {})}
