@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 22 (01/10/2026).
+Última atualização: versão 23 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -320,3 +320,4 @@ Do lado do negócio:
 | v20 | Etapas personalizáveis, cadastro só por convite, exportação por empresa, e-mails neutros |
 | v21 | Documentação do projeto |
 | v22 | Vários contatos e telefones por negócio, operadora de cada número, card com tamanho fixo |
+| v23 | Correção: cards não encolhem mais; colunas cheias ganham barra de rolagem |

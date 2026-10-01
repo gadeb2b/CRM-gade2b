@@ -382,3 +382,7 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 .op-badge.antiga{border-color:var(--warn);background:var(--warn-soft)}
 .op-escolha{margin-left:38px;border:1px solid var(--gold);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
 .op-botoes{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Os cards nunca encolhem: quando não cabem, a coluna ganha barra de rolagem */
+.cards > *{flex-shrink:0}
+.cards{overflow-y:auto;overscroll-behavior:contain}
