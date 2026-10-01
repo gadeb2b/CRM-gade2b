@@ -92,6 +92,7 @@ function Recebimentos({ linhas, fornecedores, atualizar }) {
     if (filtro === "ativos") return s !== "cancelado";
     if (filtro === "abertos") return s === "previsto" || s === "atrasado";
     if (filtro === "revisar") return r.revisar;
+    if (filtro === "estimada") return r.status === "previsto" && r.data_estimada;
     if (filtro === "todos") return true;
     return s === filtro;
   });
@@ -136,6 +137,7 @@ function Recebimentos({ linhas, fornecedores, atualizar }) {
           <option value="estornado">Estornados</option>
           <option value="cancelado">Cancelados</option>
           <option value="revisar">Para revisar</option>
+          <option value="estimada">Aguardando conclusão (data estimada)</option>
           <option value="todos">Todos</option>
         </select>
         <select value={forn} onChange={(e) => setForn(e.target.value)} aria-label="Fornecedor">
@@ -172,7 +174,9 @@ function Recebimentos({ linhas, fornecedores, atualizar }) {
               return (
                 <tr key={r.id} className={sel.has(r.id) ? "sel" : ""}>
                   <td className="chk"><input type="checkbox" checked={sel.has(r.id)} onChange={() => marcar(r.id)} aria-label="Selecionar" /></td>
-                  <td className="txt">{dataBr(r.data_prevista)}</td>
+                  <td className="txt" title={r.data_estimada ? "Data estimada: informe a conclusão do pedido no negócio para confirmar" : ""}>
+                    {r.data_estimada && r.status === "previsto" ? <span className="estimada">≈ {dataBr(r.data_prevista)}</span> : dataBr(r.data_prevista)}
+                  </td>
                   <td className="txt">{r.negocio_nome}{r.cliente_empresa && r.cliente_empresa !== r.negocio_nome ? <span className="muted"> · {r.cliente_empresa}</span> : null}</td>
                   <td className="txt">{r.produto_nome}{r.fornecedor_nome ? <span className="muted"> · {r.fornecedor_nome}</span> : null}</td>
                   <td className="txt num">{r.parcela}/{r.parcelas}</td>
@@ -388,7 +392,22 @@ function Configuracoes({ empresaId, toast, recarregar }) {
           <div className="field"><label>Intervalo entre parcelas (dias)</label>
             <input type="number" min="1" max="365" defaultValue={cfg.intervalo_parcelas_dias ?? 30} onBlur={(e) => salvar({ intervalo_parcelas_dias: Math.max(1, parseInt(e.target.value, 10) || 30) })} /></div>
         </div>
-        <p className="muted">O prazo padrão vale para produtos com a coluna “Prazo (dias)” em branco no Catálogo. Mudanças valem para as próximas vendas.</p>
+        <p className="muted">O prazo padrão vale para produtos “Em dias” com a coluna “Prazo (dias)” em branco no Catálogo. Mudanças valem para as próximas vendas.</p>
+      </section>
+      <section>
+        <h3>Regra quinzenal</h3>
+        <p className="muted">Para produtos com a regra “Quinzenal” no Catálogo. A data base é a conclusão do pedido (instalação/ativação).</p>
+        <div className="quinzena">
+          Concluídos do dia 1 ao dia
+          <input type="number" min="1" max="30" defaultValue={cfg.quinzena_corte ?? 15} onBlur={(e) => salvar({ quinzena_corte: Math.min(30, Math.max(1, parseInt(e.target.value, 10) || 15)) })} />
+          → recebe no próximo dia
+          <input type="number" min="1" max="31" defaultValue={cfg.quinzena_dia_1 ?? 30} onBlur={(e) => salvar({ quinzena_dia_1: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 30)) })} />
+        </div>
+        <div className="quinzena">
+          Concluídos depois disso até o fim do mês → recebe no próximo dia
+          <input type="number" min="1" max="31" defaultValue={cfg.quinzena_dia_2 ?? 15} onBlur={(e) => salvar({ quinzena_dia_2: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 15)) })} />
+        </div>
+        <p className="muted">Em meses mais curtos, vale o último dia do mês. Parcelas seguintes caem no mesmo dia dos meses seguintes.</p>
       </section>
       <section>
         <h3>Vendas que já estavam em “Ganho”</h3>

@@ -410,3 +410,6 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 .imp-progresso div{position:absolute;inset:0 auto 0 0;background:var(--brand-soft);transition:width .3s}
 .imp-progresso span{position:relative;display:block;text-align:center;line-height:28px;font-size:13px}
 .imp-tels span{display:block;white-space:nowrap}
+.estimada{color:var(--muted);font-style:italic}
+.quinzena{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.quinzena input{width:64px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);text-align:center}

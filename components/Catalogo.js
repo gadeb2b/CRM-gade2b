@@ -29,6 +29,7 @@ function lerColagem(texto) {
       comissao_tipo: /%/.test(c[6] || "") ? "percentual" : "fixo",
       comissao_valor: lerPreco((c[6] || "").replace("%", "")),
       comissao_parcelas: Math.max(1, Math.min(36, parseInt(c[7], 10) || 1)),
+      prazo_tipo: /quinz/i.test(c[8] || "") ? "quinzenal" : "dias",
       comissao_prazo_dias: c[8] !== undefined && c[8] !== "" && !isNaN(parseInt(c[8], 10)) ? parseInt(c[8], 10) : null,
     }));
 }
@@ -107,6 +108,21 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
             <div className="field"><label>Nome</label><input value={fornAtual.nome} onChange={(e) => cfg.updFornecedor(fornAtual.id, { nome: e.target.value })} /></div>
             <div className="field"><label>Contato</label><input placeholder="Nome, telefone ou e-mail" value={fornAtual.contato} onChange={(e) => cfg.updFornecedor(fornAtual.id, { contato: e.target.value })} /></div>
             <div className="field"><label>Observações</label><textarea value={fornAtual.observacoes} onChange={(e) => cfg.updFornecedor(fornAtual.id, { observacoes: e.target.value })} /></div>
+            <div className="field">
+              <label>Regra de prazo para todos os produtos deste fornecedor</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <select id="regra-forn" defaultValue="quinzenal" style={{ flex: 1 }}>
+                  <option value="quinzenal">Quinzenal</option>
+                  <option value="dias">Em dias</option>
+                </select>
+                <button className="btn small" onClick={() => {
+                  const v = document.getElementById("regra-forn").value;
+                  const ps = produtos.filter((p) => p.fornecedor_id === fornAtual.id);
+                  if (!ps.length || !confirm(`Aplicar a regra “${v === "quinzenal" ? "Quinzenal" : "Em dias"}” aos ${ps.length} produto(s) de ${fornAtual.nome}? Vale para as próximas vendas.`)) return;
+                  ps.forEach((p) => cfg.updProduto(p.id, { prazo_tipo: v }));
+                }}>Aplicar</button>
+              </div>
+            </div>
             <button className="btn danger small" onClick={async () => { if (await cfg.delFornecedor(fornAtual.id)) setForn("todos"); }}>Excluir fornecedor</button>
           </div>
         )}
@@ -139,7 +155,8 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
                 <th style={{ minWidth: 90 }} title="Como a comissão é calculada">Comissão</th>
                 <th style={{ minWidth: 100 }} title="Valor fixo em R$ ou percentual do preço">Valor</th>
                 <th style={{ minWidth: 80 }} title="Em quantas parcelas o fornecedor paga">Parcelas</th>
-                <th style={{ minWidth: 90 }} title="Dias depois da venda até a 1ª parcela (em branco = padrão)">Prazo (dias)</th>
+                <th style={{ minWidth: 120 }} title="Dias depois da conclusão, ou quinzenal (1–15 → dia 30; 16–31 → dia 15)">Regra de prazo</th>
+                <th style={{ minWidth: 90 }} title="Dias depois da conclusão até a 1ª parcela (em branco = padrão)">Prazo (dias)</th>
                 <th style={{ minWidth: 120 }} title="Total que a empresa recebe por unidade vendida">Você recebe</th>
                 <th>Ativo</th>
                 <th aria-label="Ações" />
@@ -173,7 +190,13 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
                   </td>
                   <td><input className="cel num" type="number" min="0" step="0.01" value={p.comissao_valor ?? 0} onChange={(e) => cfg.updProduto(p.id, { comissao_valor: Number(e.target.value) || 0 })} /></td>
                   <td><input className="cel num" type="number" min="1" max="36" step="1" value={p.comissao_parcelas ?? 1} onChange={(e) => cfg.updProduto(p.id, { comissao_parcelas: Math.max(1, Math.min(36, parseInt(e.target.value, 10) || 1)) })} /></td>
-                  <td><input className="cel num" type="number" min="0" max="730" step="1" placeholder="padrão" value={p.comissao_prazo_dias ?? ""} onChange={(e) => cfg.updProduto(p.id, { comissao_prazo_dias: e.target.value === "" ? null : Math.max(0, parseInt(e.target.value, 10) || 0) })} /></td>
+                  <td>
+                    <select className="cel" value={p.prazo_tipo || "dias"} onChange={(e) => cfg.updProduto(p.id, { prazo_tipo: e.target.value })}>
+                      <option value="dias">Em dias</option>
+                      <option value="quinzenal">Quinzenal</option>
+                    </select>
+                  </td>
+                  <td><input className="cel num" type="number" min="0" max="730" step="1" disabled={p.prazo_tipo === "quinzenal"} placeholder={p.prazo_tipo === "quinzenal" ? "—" : "padrão"} value={p.prazo_tipo === "quinzenal" ? "" : p.comissao_prazo_dias ?? ""} onChange={(e) => cfg.updProduto(p.id, { comissao_prazo_dias: e.target.value === "" ? null : Math.max(0, parseInt(e.target.value, 10) || 0) })} /></td>
                   <td className="num calc">{comissaoTxt(p)}</td>
                   <td className="centro"><input type="checkbox" checked={p.ativo !== false} onChange={(e) => cfg.updProduto(p.id, { ativo: e.target.checked })} aria-label="Produto ativo" /></td>
                   <td className="acoes">
@@ -227,7 +250,7 @@ function Colagem({ fornecedores, fornPadrao, cfg, fechar }) {
           </p>
           <div className="vars">
             <code>Nome</code> <code>Preço</code> <code>Cobrança (único ou mensal)</code> <code>Categoria</code> <code>Oferta</code> <code>Segmentos</code>
-            <code>Comissão (R$ ou %)</code> <code>Parcelas</code> <code>Prazo em dias</code>
+            <code>Comissão (R$ ou %)</code> <code>Parcelas</code> <code>Prazo (dias ou “quinzenal”)</code>
             <br />Na comissão, escreva só o número para valor fixo (ex.: 120) ou com % para percentual do preço (ex.: 100%).
           </div>
           <div className="field" style={{ marginBottom: 12 }}>

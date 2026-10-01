@@ -272,6 +272,20 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
           </div>
         </div>
 
+        {d.etapa === "ganho" && (
+          <>
+            <h3>Conclusão do pedido</h3>
+            <div className="grid">
+              <div className="field"><label>Venda fechada em</label><input type="date" value={d.ganho_em || ""} disabled /></div>
+              <div className="field"><label htmlFor="f-concl">Concluído em (instalação/ativação)</label><input id="f-concl" type="date" {...campo("concluido_em")} /></div>
+            </div>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              {d.concluido_em ? "As datas dos recebimentos seguem esta data e a regra de prazo de cada produto. Se mudar, os recebimentos ainda não recebidos são recalculados."
+                : "Enquanto a conclusão não for informada, os recebimentos ficam com data estimada (a partir do dia em que a venda foi fechada)."}
+            </p>
+          </>
+        )}
+
         <h3>Próxima ação</h3>
         <div className="grid">
           <div className="field"><label htmlFor="f-acao">O que fazer</label><input id="f-acao" placeholder="Ex.: Cobrar retorno" {...campo("acao")} /></div>

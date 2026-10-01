@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 24 (01/10/2026).
+Última atualização: versão 25 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -124,6 +124,7 @@ vercel.json       Agendamento do backup diário (06:00 UTC = 03:00 de Brasília)
 | `10-plataforma-multiempresa.sql` | Empresas, separação de dados, convites, marca, painel da plataforma |
 | `11-etapas-convites-logo.sql` | Etapas por empresa, cadastro só por convite e permissão do logo |
 | `12-contatos-telefones.sql` | Contatos do negócio, vários telefones, número principal e operadora |
+| `13-conclusao-e-prazo-quinzenal.sql` | Data de conclusão do pedido e regra de prazo quinzenal por produto |
 
 Todos os scripts já foram executados. Um script novo deve ser rodado **antes** de subir a versão do código que depende dele.
 
@@ -176,7 +177,9 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 
 ### Financeiro
 
-- Comissão do produto: valor fixo (R$) ou % do preço; total dividido em N parcelas; prazo em dias até a 1ª parcela (em branco = padrão da empresa).
+- Comissão do produto: valor fixo (R$) ou % do preço; total dividido em N parcelas.
+- Regra de prazo de cada produto: **Em dias** (X dias depois da data base; em branco = padrão da empresa) ou **Quinzenal** (concluído do dia 1 ao 15 → próximo dia 30; do 16 ao fim do mês → próximo dia 15; meses curtos usam o último dia; parcelas seguintes no mesmo dia dos meses seguintes). Os dias são configuráveis em Financeiro → Configurações. No Catálogo, dá para aplicar a regra a todos os produtos de um fornecedor.
+- Data base dos recebimentos: a **data de conclusão** do pedido (instalação/ativação), informada no negócio em Ganho e editável. Sem ela, a data fica **estimada** a partir do dia em que a venda foi fechada (aparece com "≈" no Financeiro). Ao informar ou mudar a conclusão, os recebimentos ainda não recebidos são recalculados.
 - Quando um negócio vai para a etapa de **venda ganha**, o banco cria os recebimentos previstos, com valores **congelados** naquele momento.
 - Comissão do vendedor: regra mais específica entre fornecedor + categoria → só fornecedor → só categoria → padrão do vendedor. Pode ser % do que a empresa recebe ou R$ por produto.
 - O repasse só fica **liberado** depois que o recebimento é marcado como recebido. Se o valor recebido mudar, o repasse em % é recalculado.
@@ -329,3 +332,4 @@ Do lado do negócio:
 | v22 | Vários contatos e telefones por negócio, operadora de cada número, card com tamanho fixo |
 | v23 | Correção: cards não encolhem mais; colunas cheias ganham barra de rolagem |
 | v24 | Importação de leads por planilha; botões de novo lead e importar em cada coluna; menu com rolagem |
+| v25 | Data de conclusão do pedido (editável) e regra de prazo quinzenal por produto |

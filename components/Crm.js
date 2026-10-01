@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, ABERTAS, TIPOS_PADRAO, COLUNAS_NEGOCIO, nomeEtapa, definirEtapas } from "../lib/constantes";
-import { brl, brlExato, hoje, diff } from "../lib/util";
+import { brl, brlExato, hoje, diff, fmtData } from "../lib/util";
 import { modeloPara, prodsDe, statusAcao } from "../lib/mensagens";
 import Painel from "./Painel";
 import Config from "./Config";
@@ -186,7 +186,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const atualizarNegocio = useCallback((id, patch) => {
     setNegocios((ns) => ns.map((d) => (d.id === id ? { ...d, ...patch } : d)));
     const db = {};
-    for (const k in patch) if (COLUNAS_NEGOCIO.includes(k)) db[k] = k === "acao_data" && !patch[k] ? null : patch[k];
+    for (const k in patch) if (COLUNAS_NEGOCIO.includes(k)) db[k] = (k === "acao_data" || k === "concluido_em") && !patch[k] ? null : patch[k];
     if (Object.keys(db).length) salvarDepois("negocios", id, db);
   }, [salvarDepois]);
 
@@ -200,6 +200,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     const d = negocios.find((x) => x.id === id);
     if (!d || d.etapa === etapa) return;
     const patch = { etapa, etapa_desde: hoje(), tipo_msg_id: null };
+    if (etapa === "ganho" && !d.ganho_em) patch.ganho_em = hoje();
     if (d.msg_origem === "modelo" || !d.msg_origem) {
       const m = modeloPara({ ...d, ...patch }, ctx);
       Object.assign(patch, { msg_rascunho: m.msg, assunto_rascunho: m.assunto, msg_origem: "modelo" });
@@ -308,7 +309,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     if (!rascunho.nome.trim() && !rascunho.empresa.trim()) { toast("Preencha pelo menos o nome ou a empresa"); return; }
     setCriando(true);
     const linha = {};
-    COLUNAS_NEGOCIO.forEach((k) => { linha[k] = k === "acao_data" && !rascunho[k] ? null : rascunho[k]; });
+    COLUNAS_NEGOCIO.forEach((k) => { linha[k] = (k === "acao_data" || k === "concluido_em") && !rascunho[k] ? null : rascunho[k]; });
     const { data, error } = await supabase.from("negocios").insert(linha).select().single();
     if (error) { setCriando(false); toast("Não foi possível criar: " + error.message); return; }
     if (rascunho.produtos.length) {
@@ -913,6 +914,9 @@ function Card({ d, produtos, resp, operadora, onOpen }) {
       <div className="c-foot">
         <span className="ch-tag">{d.canal === "whatsapp" ? <><IcChat /> WhatsApp</> : <><IcMail /> E-mail</>}</span>
         {operadora && <span className="op-mini" title="Operadora do número principal">{operadora}</span>}
+        {d.etapa === "ganho" && (d.concluido_em
+          ? <span className="op-mini" title="Data de conclusão (instalação/ativação)">concluído {fmtData(d.concluido_em)}</span>
+          : <span className="stale" title="Informe a data de instalação/ativação para confirmar as datas de recebimento">sem conclusão</span>)}
         {resp && <span className="c-resp" title={resp}>{resp}</span>}
         {parado >= 7 && <span className="stale">parado há {parado} dias</span>}
       </div>
