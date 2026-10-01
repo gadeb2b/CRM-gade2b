@@ -341,3 +341,11 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 .plat-col h4{margin:16px 0 4px}
 .plat-col .muted{margin:0 0 8px;font-size:13px}
 @media (max-width:900px){.plat-corpo{grid-template-columns:1fr}}
+.etapas-lista{display:flex;flex-direction:column;gap:6px}
+.etapa-linha{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.etapa-linha input{flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:var(--surface)}
+.etapa-ordem{display:flex;flex-direction:column}
+.etapa-ordem .btn{padding:0 6px;font-size:11px;line-height:16px}
+.etapa-qtd{font-size:12px;white-space:nowrap}
+.etapa-excluir{margin-top:16px;padding:12px;border:1px solid var(--danger);border-radius:8px;background:color-mix(in srgb, var(--danger) 10%, var(--surface))}
+.etapa-excluir .muted{margin:4px 0 10px}

@@ -1,21 +1,24 @@
-# Modelos de e-mail do Supabase (CRM Gade2B)
+# Modelos de e-mail do Supabase (texto neutro, vale para todas as empresas)
 
-Colar em: Supabase → Authentication → Emails → Templates.
-Em cada modelo, troque o **Subject** e o **Body** (message body) pelo texto abaixo.
+Os e-mails de confirmação de cadastro e de nova senha são os mesmos para todas as empresas da plataforma,
+por isso o texto não cita nenhuma empresa.
+
+1. Supabase → Authentication → Emails → SMTP Settings: troque o **Sender name** para `CRM de vendas`.
+2. Supabase → Authentication → Emails → Templates: em cada modelo, cole o **Subject** e o **Body** abaixo.
 
 ---
 
 ## Confirm signup (confirmar cadastro)
 
 **Subject:**
-Confirme seu cadastro no CRM Gade2B
+Confirme seu cadastro no CRM de vendas
 
 **Body:**
 ```html
 <h2>Confirme seu cadastro</h2>
-<p>Olá! Recebemos um pedido de acesso ao CRM da Gade2B com este e-mail.</p>
+<p>Olá! Recebemos um pedido de acesso ao CRM de vendas com este e-mail.</p>
 <p><a href="{{ .ConfirmationURL }}">Clique aqui para confirmar seu e-mail</a></p>
-<p>Depois da confirmação, seu acesso ainda precisa ser aprovado pelo administrador.</p>
+<p>Depois da confirmação, entre com seu e-mail e senha. Se o seu acesso precisar de aprovação, o administrador da sua empresa será avisado.</p>
 <p>Se você não fez esse pedido, pode ignorar esta mensagem.</p>
 ```
 
@@ -24,14 +27,14 @@ Confirme seu cadastro no CRM Gade2B
 ## Reset password (redefinir senha)
 
 **Subject:**
-Crie uma nova senha para o CRM Gade2B
+Crie uma nova senha para o CRM de vendas
 
 **Body:**
 ```html
 <h2>Nova senha</h2>
-<p>Recebemos um pedido para criar uma nova senha para sua conta no CRM da Gade2B.</p>
+<p>Recebemos um pedido para criar uma nova senha para a sua conta no CRM de vendas.</p>
 <p><a href="{{ .ConfirmationURL }}">Clique aqui para criar sua nova senha</a></p>
-<p>Se você não pediu isso, ignore esta mensagem. Sua senha atual continua valendo.</p>
+<p>O link vale por pouco tempo e só pode ser usado uma vez. Se você não pediu isso, ignore esta mensagem: sua senha atual continua valendo.</p>
 ```
 
 ---
@@ -39,11 +42,11 @@ Crie uma nova senha para o CRM Gade2B
 ## Change email address (troca de e-mail)
 
 **Subject:**
-Confirme seu novo e-mail no CRM Gade2B
+Confirme seu novo e-mail no CRM de vendas
 
 **Body:**
 ```html
 <h2>Confirme seu novo e-mail</h2>
-<p>Recebemos um pedido para trocar o e-mail da sua conta no CRM da Gade2B para {{ .NewEmail }}.</p>
+<p>Recebemos um pedido para trocar o e-mail da sua conta no CRM de vendas para {{ .NewEmail }}.</p>
 <p><a href="{{ .ConfirmationURL }}">Clique aqui para confirmar a troca</a></p>
 ```

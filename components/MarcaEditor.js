@@ -20,7 +20,7 @@ export default function MarcaEditor({ empresa, toast, aoSalvar }) {
     setEnviando(true);
     const ext = arq.name.split(".").pop().toLowerCase().replace(/[^a-z]/g, "") || "png";
     const caminho = `${empresa.id}/logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("marcas").upload(caminho, arq, { upsert: true, contentType: arq.type });
+    const { error } = await supabase.storage.from("marcas").upload(caminho, arq, { contentType: arq.type });
     setEnviando(false);
     if (error) { toast("Não foi possível enviar o logo: " + error.message); return; }
     setLogo(supabase.storage.from("marcas").getPublicUrl(caminho).data.publicUrl);

@@ -35,6 +35,20 @@ export default function Plataforma({ minhaEmpresaId, toast }) {
     toast("Empresa criada. Envie o link de primeiro administrador para o responsável.");
   }
 
+  async function exportar(e, formato) {
+    toast("Gerando exportação…");
+    const { data } = await supabase.auth.getSession();
+    const r = await fetch(`/api/exportar-empresa?empresa=${e.id}&formato=${formato}`, { headers: { Authorization: "Bearer " + (data.session?.access_token || "") } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); toast(j.erro || "A exportação falhou."); return; }
+    const blob = await r.blob();
+    const nome = (r.headers.get("Content-Disposition") || "").match(/filename="(.+)"/)?.[1] || `${e.slug}.${formato}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast("Exportação pronta");
+  }
+
   async function atualizar(id, status, dominio) {
     const { error } = await supabase.rpc("plataforma_atualizar_empresa", { p_empresa: id, p_status: status, p_dominio: dominio });
     if (error) { toast(error.message); return; }
@@ -80,6 +94,12 @@ export default function Plataforma({ minhaEmpresaId, toast }) {
                     <h4>Domínio próprio</h4>
                     <p className="muted">Ex.: crm.empresa.com.br. Também precisa ser adicionado no projeto da Vercel, e a empresa precisa criar o CNAME no DNS dela.</p>
                     <Dominio e={e} salvar={(d) => atualizar(e.id, null, d)} />
+                    <h4>Exportar dados</h4>
+                    <p className="muted">Tudo da empresa: negócios, histórico, catálogo, financeiro e usuários. Use para entregar os dados a um cliente que sair da plataforma.</p>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button className="btn small" onClick={() => exportar(e, "xlsx")}>Planilha (.xlsx)</button>
+                      <button className="btn small ghost" onClick={() => exportar(e, "json")}>Dados completos (.json)</button>
+                    </div>
                     <h4>Acesso</h4>
                     {e.status === "ativa"
                       ? <button className="btn danger" disabled={e.id === minhaEmpresaId} onClick={() => { if (confirm(`Bloquear o acesso de ${e.nome}? Ninguém da empresa conseguirá entrar até você reativar. Os dados ficam guardados.`)) atualizar(e.id, "bloqueada", null); }}>Bloquear empresa</button>

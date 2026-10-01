@@ -10,6 +10,7 @@ function traduzir(msg) {
   if (m.includes("signups not allowed") || m.includes("signup is disabled")) return "Novos cadastros estão desativados no momento.";
   if (m.includes("password")) return "A senha não atende aos requisitos. Use pelo menos 8 caracteres.";
   if (m.includes("rate limit") || m.includes("security purposes")) return "Muitas tentativas seguidas. Espere um ou dois minutos antes de tentar de novo.";
+  if (m.includes("database error") || m.includes("convite")) return "Este link de convite é inválido ou já foi usado. Peça um novo ao administrador.";
   if (m.includes("error sending") || m.includes("smtp")) return "O e-mail não pôde ser enviado: a configuração de envio (SMTP) no Supabase precisa ser revisada.";
   return "Não foi possível concluir. Detalhe: " + (msg || "erro desconhecido");
 }
