@@ -53,11 +53,10 @@ export default function Usuarios({ pessoas, meId, recarregar, fechar, toast }) {
         )) : <p className="muted">Nenhuma solicitação pendente.</p>}
 
         <h3>Ativos</h3>
-        <p className="muted" style={{ marginTop: -4 }}>A comissão é calculada sobre o que a Gade2B recebe do fornecedor: um percentual dele ou um valor fixo por produto vendido. Vale para as próximas vendas.</p>
+        <p className="muted" style={{ marginTop: -4 }}>As comissões de cada pessoa ficam em Financeiro → Comissão por vendedor.</p>
         {ativos.map((p) => (
           <div className="urow" key={p.user_id}>
             {quem(p)}
-            <Comissao p={p} toast={toast} recarregar={recarregar} />
             {p.user_id === meId ? <span className="tag">{nomePapel(p.papel)}</span> : (
               <>
                 <select aria-label="Papel" value={p.papel} disabled={ocupado === p.user_id} onChange={(e) => decidir(p, "ativo", e.target.value, "Papel atualizado")}>

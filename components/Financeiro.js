@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { hoje } from "../lib/util";
 import { IcSearch } from "./Icon";
+import RegrasComissao from "./RegrasComissao";
 
 const reais = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dataBr = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "");
@@ -27,7 +28,7 @@ function situacaoRepasse(r) {
 }
 const ROTULO_REP = { aguardando: "Aguardando recebimento", liberado: "Liberado para pagar", pago: "Pago", cancelado: "Cancelado/estornado" };
 
-export default function Financeiro({ fornecedores, toast }) {
+export default function Financeiro({ fornecedores, produtos, pessoas, recarregarPessoas, toast }) {
   const [aba, setAba] = useState("recebimentos");
   const [linhas, setLinhas] = useState(null);
 
@@ -59,7 +60,7 @@ export default function Financeiro({ fornecedores, toast }) {
       <div className="fin-topo">
         <h2>Financeiro</h2>
         <div className="tabs fin-tabs" role="tablist">
-          {[["recebimentos", "Recebimentos"], ["comissoes", "Comissões dos vendedores"], ["config", "Configurações"]].map(([id, n]) => (
+          {[["recebimentos", "Recebimentos"], ["comissoes", "Repasses aos vendedores"], ["regras", "Comissão por vendedor"], ["config", "Configurações"]].map(([id, n]) => (
             <button key={id} className="tab" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}>{n}</button>
           ))}
         </div>
@@ -67,6 +68,7 @@ export default function Financeiro({ fornecedores, toast }) {
       {linhas === null ? <p className="muted" style={{ padding: 20 }}>Carregando…</p>
         : aba === "recebimentos" ? <Recebimentos linhas={linhas} fornecedores={fornecedores} atualizar={atualizar} />
         : aba === "comissoes" ? <Comissoes linhas={linhas} atualizar={atualizar} />
+        : aba === "regras" ? <RegrasComissao pessoas={pessoas} fornecedores={fornecedores} produtos={produtos} recarregarPessoas={recarregarPessoas} toast={toast} />
         : <Configuracoes toast={toast} recarregar={carregar} />}
     </div>
   );
@@ -265,7 +267,7 @@ function Comissoes({ linhas, atualizar }) {
                 <td><button className="btn small ghost" onClick={() => { setVend(v.id); setFiltro("liberado"); }}>Ver detalhes</button></td>
               </tr>
             ))}
-            {!vendedores.length && <tr><td colSpan={5} className="muted">Nenhuma comissão ainda. Defina a comissão de cada vendedor em Usuários.</td></tr>}
+            {!vendedores.length && <tr><td colSpan={5} className="muted">Nenhuma comissão ainda. Defina a comissão de cada vendedor na aba “Comissão por vendedor”.</td></tr>}
           </tbody>
         </table>
       </div>

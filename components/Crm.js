@@ -528,7 +528,7 @@ export default function Crm({ sessao, perfil }) {
       {tela === "catalogo" ? (
         <Catalogo fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} cfg={cfg} voltar={() => setTela("quadro")} />
       ) : tela === "financeiro" ? (
-        <Financeiro fornecedores={fornecedores} toast={toast} />
+        <Financeiro fornecedores={fornecedores} produtos={produtos} pessoas={pessoas} recarregarPessoas={carregarPessoas} toast={toast} />
       ) : tela === "minhas" ? (
         <MinhasComissoes toast={toast} />
       ) : <>
