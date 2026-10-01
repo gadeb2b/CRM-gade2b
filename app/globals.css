@@ -251,3 +251,49 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 .menu-user{padding:8px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;display:flex;flex-direction:column;gap:2px}
 .menu-user .muted{font-size:12px}
 @media (max-width:640px){.hrow .search{max-width:none;flex-basis:100%;order:3}}
+.sel-chip .qtd{width:52px;border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:2px 4px;text-align:center;font-size:13px}
+.planilha td.calc{padding:8px 10px;color:var(--money);white-space:nowrap}
+.com-user{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.com-user input{width:80px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);text-align:right}
+.com-user select{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface)}
+
+/* Financeiro */
+.fin{flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 20px 18px;border-top:1px solid var(--line)}
+.fin-topo{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:14px}
+.fin-topo h2{margin:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:24px}
+.fin-tabs{padding:0;border-bottom:0}
+.fin-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.fin-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:160px;display:flex;flex-direction:column;gap:2px;text-align:left;color:var(--ink)}
+.fin-card span{font-size:13px;color:var(--muted)}
+.fin-card b{font-size:20px;font-variant-numeric:tabular-nums}
+.fin-card.ok b{color:var(--wa)}
+.fin-card.alerta b{color:var(--danger)}
+.fin-card.revisar{cursor:pointer;border-color:var(--warn)}
+.fin-card.revisar b{color:var(--warn)}
+.fin-filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.fin-filtros select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.fin-filtros .search{max-width:320px}
+.fin-lote{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--brand-soft);border:1px solid var(--brand);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:14px}
+.fin-lote label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.fin-lote input[type=date]{border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--surface)}
+.fin-tab td.txt{padding:8px 10px;white-space:nowrap}
+.fin-tab td.chk,.fin-tab th.chk{width:36px;text-align:center;padding:0 8px}
+.fin-tab tr.sel td{background:var(--brand-soft)}
+.planilha td.num,.planilha th.num{text-align:right;font-variant-numeric:tabular-nums}
+.planilha .destaque{color:var(--money);font-weight:600}
+.cel.sit.atrasado{color:var(--danger)}
+.cel.sit.recebido{color:var(--wa)}
+.cel.sit.diferenca{color:var(--warn)}
+.cel.sit.estornado,.cel.sit.cancelado{color:var(--muted)}
+.obs{display:flex;align-items:center;gap:4px}
+.revisar-btn{border-color:var(--warn);color:var(--warn);white-space:nowrap;margin-left:6px}
+.tag-sit{font-size:12px;border-radius:999px;padding:2px 9px;border:1px solid var(--line);white-space:nowrap}
+.tag-sit.liberado{border-color:var(--wa);color:var(--wa)}
+.tag-sit.pago{border-color:var(--gold);color:var(--gold)}
+.tag-sit.aguardando{color:var(--muted)}
+.tag-sit.cancelado{color:var(--muted);text-decoration:line-through}
+.fin-config{display:flex;flex-direction:column;gap:22px;max-width:760px}
+.fin-config section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.fin-config h3{margin:0 0 6px}
+.fin-config .muted{margin:0 0 10px}
+.fin-tab select.cel.sit{min-width:175px}

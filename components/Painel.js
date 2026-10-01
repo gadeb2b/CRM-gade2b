@@ -6,7 +6,7 @@ import { fmtData, temTel, temMail, waLink, mailLink, soDigitos, cnpjValido, form
 import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
-export default function Painel({ novo = false, criando = false, concluir, d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, registrar, excluir, fechar, toast }) {
+export default function Painel({ novo = false, criando = false, concluir, d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, registrar, excluir, fechar, toast }) {
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
@@ -182,7 +182,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
         <datalist id="cnaes">{CNAES.map((c) => <option key={c[0]} value={c[0] + " – " + c[1]} />)}</datalist>
 
         <h3>Produtos oferecidos</h3>
-        <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} />
+        <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} setQtd={setQuantidade} />
         <div className="grid" style={{ marginTop: 12 }}>
           <div className="field"><label htmlFor="f-val">Valor do negócio (R$)</label><input id="f-val" type="number" min="0" step="0.01" {...campo("valor", { num: true })} /></div>
           <div className="field"><label htmlFor="f-canal">Canal principal</label>
@@ -260,7 +260,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
 }
 
 // Escolha de produtos com busca, agrupada por fornecedor (pensada para catálogos grandes)
-function SeletorProdutos({ d, produtos, fornecedores, toggle }) {
+function SeletorProdutos({ d, produtos, fornecedores, toggle, setQtd }) {
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState(false);
   const fechar = useRef(null);
@@ -286,6 +286,9 @@ function SeletorProdutos({ d, produtos, fornecedores, toggle }) {
         <div className="pchips" style={{ marginBottom: 8 }}>
           {selecionados.map((p) => (
             <span key={p.id} className="stage-btn sel-chip">
+              <input type="number" min="1" max="9999" className="qtd" aria-label={"Quantidade de " + p.nome}
+                value={(d.qtd || {})[p.id] || 1} onChange={(e) => setQtd(p.id, e.target.value)} />
+              <span>×</span>
               {p.nome} <span className="muted">{precoTxt(p)}</span>
               <button type="button" onClick={() => toggle(p.id)} aria-label={"Remover " + p.nome}>×</button>
             </span>

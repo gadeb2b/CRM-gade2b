@@ -53,9 +53,11 @@ export default function Usuarios({ pessoas, meId, recarregar, fechar, toast }) {
         )) : <p className="muted">Nenhuma solicitação pendente.</p>}
 
         <h3>Ativos</h3>
+        <p className="muted" style={{ marginTop: -4 }}>A comissão é calculada sobre o que a Gade2B recebe do fornecedor: um percentual dele ou um valor fixo por produto vendido. Vale para as próximas vendas.</p>
         {ativos.map((p) => (
           <div className="urow" key={p.user_id}>
             {quem(p)}
+            <Comissao p={p} toast={toast} recarregar={recarregar} />
             {p.user_id === meId ? <span className="tag">{nomePapel(p.papel)}</span> : (
               <>
                 <select aria-label="Papel" value={p.papel} disabled={ocupado === p.user_id} onChange={(e) => decidir(p, "ativo", e.target.value, "Papel atualizado")}>
@@ -84,5 +86,33 @@ export default function Usuarios({ pessoas, meId, recarregar, fechar, toast }) {
         <button className="btn primary" onClick={fechar}>Concluir</button>
       </div>
     </aside>
+  );
+}
+
+function Comissao({ p, toast, recarregar }) {
+  const [tipo, setTipo] = useState(p.comissao_tipo || "percentual");
+  const [valor, setValor] = useState(String(p.comissao_valor ?? 0));
+  const [salvando, setSalvando] = useState(false);
+  const mudou = tipo !== (p.comissao_tipo || "percentual") || Number(valor) !== Number(p.comissao_valor ?? 0);
+
+  async function salvar() {
+    setSalvando(true);
+    const { error } = await supabase.rpc("definir_comissao_usuario", { alvo: p.user_id, tipo, valor: Number(valor) || 0 });
+    setSalvando(false);
+    if (error) { toast(error.message); return; }
+    toast("Comissão atualizada");
+    recarregar();
+  }
+
+  return (
+    <div className="com-user" title="Comissão do vendedor">
+      <span className="muted">Comissão</span>
+      <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} aria-label="Valor da comissão" />
+      <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo de comissão">
+        <option value="percentual">% do recebido</option>
+        <option value="fixo">R$ por produto</option>
+      </select>
+      {mudou && <button className="btn small primary" disabled={salvando} onClick={salvar}>{salvando ? "…" : "Salvar"}</button>}
+    </div>
   );
 }

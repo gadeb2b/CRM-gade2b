@@ -10,7 +10,14 @@ import Usuarios from "./Usuarios";
 import Backup from "./Backup";
 import Catalogo from "./Catalogo";
 import Lixeira from "./Lixeira";
+import Financeiro from "./Financeiro";
+import MinhasComissoes from "./MinhasComissoes";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcMenu } from "./Icon";
+
+// Soma preço × quantidade dos produtos do negócio
+function valorDe(lista, qtd, produtos) {
+  return Math.round(prodsDe({ produtos: lista }, produtos).reduce((s, p) => s + (+p.preco || 0) * ((qtd || {})[p.id] || 1), 0) * 100) / 100;
+}
 
 export default function Crm({ sessao, perfil }) {
   const userId = sessao.user.id;
@@ -92,7 +99,7 @@ export default function Crm({ sessao, perfil }) {
     (async () => {
       const [n, np, p, t, m, c, fo] = await Promise.all([
         supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }),
-        supabase.from("negocio_produtos").select("negocio_id,produto_id"),
+        supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade"),
         supabase.from("produtos").select("*").order("criado_em"),
         supabase.from("tipos_mensagem").select("*").order("ordem"),
         supabase.from("modelos_produto").select("*"),
@@ -111,11 +118,12 @@ export default function Crm({ sessao, perfil }) {
       if (!c.data) await supabase.from("configuracoes").insert({ assinatura: "" });
 
       const mapa = {};
-      np.data.forEach((r) => { (mapa[r.negocio_id] ||= []).push(r.produto_id); });
+      const qtds = {};
+      np.data.forEach((r) => { (mapa[r.negocio_id] ||= []).push(r.produto_id); (qtds[r.negocio_id] ||= {})[r.produto_id] = r.quantidade || 1; });
       const mm = {};
       m.data.forEach((r) => { mm[r.produto_id + ":" + r.tipo_id] = r.modelo; });
 
-      setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [] })));
+      setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [], qtd: qtds[d.id] || {} })));
       setProdutos(p.data.map((x) => ({ ...x, preco: Number(x.preco) || 0 })));
       setFornecedores(fo.data);
       setTipos(tiposRows);
@@ -128,7 +136,7 @@ export default function Crm({ sessao, perfil }) {
 
   const carregarPessoas = useCallback(async () => {
     if (!ehAdmin) return;
-    const { data, error } = await supabase.from("perfis").select("user_id,nome,email,papel,status,criado_em").order("criado_em");
+    const { data, error } = await supabase.from("perfis").select("user_id,nome,email,papel,status,criado_em,comissao_tipo,comissao_valor").order("criado_em");
     if (!error) setPessoas(data);
   }, [ehAdmin]);
   useEffect(() => { carregarPessoas(); }, [carregarPessoas]);
@@ -167,12 +175,28 @@ export default function Crm({ sessao, perfil }) {
     if (!d) return;
     const tem = d.produtos.includes(produtoId);
     const lista = tem ? d.produtos.filter((x) => x !== produtoId) : [...d.produtos, produtoId];
-    const valor = prodsDe({ produtos: lista }, produtos).reduce((s, p) => s + (+p.preco || 0), 0);
-    atualizarNegocio(negocioId, { produtos: lista, valor });
+    const qtd = { ...(d.qtd || {}) };
+    if (tem) delete qtd[produtoId]; else qtd[produtoId] = 1;
+    atualizarNegocio(negocioId, { produtos: lista, qtd, valor: valorDe(lista, qtd, produtos) });
     const { error } = tem
       ? await supabase.from("negocio_produtos").delete().eq("negocio_id", negocioId).eq("produto_id", produtoId)
-      : await supabase.from("negocio_produtos").insert({ negocio_id: negocioId, produto_id: produtoId });
+      : await supabase.from("negocio_produtos").insert({ negocio_id: negocioId, produto_id: produtoId, quantidade: 1 });
     if (error) toast("Não foi possível salvar o produto: " + error.message);
+  }, [negocios, produtos, atualizarNegocio, toast]);
+
+  const qtdTimers = useRef({});
+  const setQuantidade = useCallback((negocioId, produtoId, q) => {
+    const d = negocios.find((x) => x.id === negocioId);
+    if (!d) return;
+    const n = Math.max(1, Math.min(9999, parseInt(q, 10) || 1));
+    const qtd = { ...(d.qtd || {}), [produtoId]: n };
+    atualizarNegocio(negocioId, { qtd, valor: valorDe(d.produtos, qtd, produtos) });
+    const k = negocioId + ":" + produtoId;
+    clearTimeout(qtdTimers.current[k]);
+    qtdTimers.current[k] = setTimeout(async () => {
+      const { error } = await supabase.from("negocio_produtos").update({ quantidade: n }).eq("negocio_id", negocioId).eq("produto_id", produtoId);
+      if (error) toast("Não foi possível salvar a quantidade: " + error.message);
+    }, 700);
   }, [negocios, produtos, atualizarNegocio, toast]);
 
   const abrir = useCallback(async (id, foco = false) => {
@@ -210,8 +234,8 @@ export default function Crm({ sessao, perfil }) {
       cnpj: "", cnae: "", atividade: "",
       telefone: "", email: "", canal: "whatsapp", etapa: "novo", etapa_desde: hoje(),
       acao: "Fazer primeiro contato", acao_data: hoje(), motivo_perda: "", tipo_msg_id: null,
-      msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods,
-      valor: prodsDe({ produtos: prods }, produtos).reduce((s, p) => s + (+p.preco || 0), 0),
+      msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods, qtd: prods.length ? { [prods[0]]: 1 } : {},
+      valor: valorDe(prods, {}, produtos),
     });
     setFocoNome(true);
   }, [fprod, produtos, userId, salvarTudoAgora]);
@@ -221,8 +245,18 @@ export default function Crm({ sessao, perfil }) {
   const toggleProdutoRascunho = useCallback((produtoId) => {
     setRascunho((r) => {
       if (!r) return r;
-      const lista = r.produtos.includes(produtoId) ? r.produtos.filter((x) => x !== produtoId) : [...r.produtos, produtoId];
-      return { ...r, produtos: lista, valor: prodsDe({ produtos: lista }, produtos).reduce((s, p) => s + (+p.preco || 0), 0) };
+      const tem = r.produtos.includes(produtoId);
+      const lista = tem ? r.produtos.filter((x) => x !== produtoId) : [...r.produtos, produtoId];
+      const qtd = { ...(r.qtd || {}) };
+      if (tem) delete qtd[produtoId]; else qtd[produtoId] = 1;
+      return { ...r, produtos: lista, qtd, valor: valorDe(lista, qtd, produtos) };
+    });
+  }, [produtos]);
+  const setQuantidadeRascunho = useCallback((produtoId, q) => {
+    setRascunho((r) => {
+      if (!r) return r;
+      const qtd = { ...(r.qtd || {}), [produtoId]: Math.max(1, Math.min(9999, parseInt(q, 10) || 1)) };
+      return { ...r, qtd, valor: valorDe(r.produtos, qtd, produtos) };
     });
   }, [produtos]);
 
@@ -235,11 +269,11 @@ export default function Crm({ sessao, perfil }) {
     const { data, error } = await supabase.from("negocios").insert(linha).select().single();
     if (error) { setCriando(false); toast("Não foi possível criar: " + error.message); return; }
     if (rascunho.produtos.length) {
-      const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid })));
+      const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid, quantidade: (rascunho.qtd || {})[pid] || 1 })));
       if (r.error) toast("Negócio criado, mas os produtos não foram salvos: " + r.error.message);
     }
     const { data: nota } = await supabase.from("interacoes").insert({ negocio_id: data.id, texto: "Lead criado", sistema: true }).select().single();
-    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos }, ...ns]);
+    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos, qtd: rascunho.qtd || {} }, ...ns]);
     setInteracoes((m) => ({ ...m, [data.id]: nota ? [nota] : [] }));
     setRascunho(null);
     setCriando(false);
@@ -439,6 +473,8 @@ export default function Crm({ sessao, perfil }) {
                 </div>
                 <button role="menuitem" className={tela === "quadro" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("quadro"))}>Quadro de vendas</button>
                 {ehAdmin && <button role="menuitem" className={tela === "catalogo" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("catalogo"))}>Catálogo de produtos</button>}
+                {ehAdmin && <button role="menuitem" className={tela === "financeiro" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("financeiro"))}>Financeiro</button>}
+                <button role="menuitem" className={tela === "minhas" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("minhas"))}>Minhas comissões</button>
                 <button role="menuitem" onClick={() => abrirMenu(() => setCfgAberto(true))}>{ehAdmin ? "Mensagens" : "Minha assinatura"}</button>
                 <button role="menuitem" onClick={() => abrirMenu(() => setLixeiraAberta(true))}>Lixeira</button>
                 {(ehAdmin || ehSuper) && <div className="menu-sep" />}
@@ -491,6 +527,10 @@ export default function Crm({ sessao, perfil }) {
 
       {tela === "catalogo" ? (
         <Catalogo fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} cfg={cfg} voltar={() => setTela("quadro")} />
+      ) : tela === "financeiro" ? (
+        <Financeiro fornecedores={fornecedores} toast={toast} />
+      ) : tela === "minhas" ? (
+        <MinhasComissoes toast={toast} />
       ) : <>
       <section className="funnel" aria-label="Valor em aberto por etapa">
         <div className="funnel-bar">
@@ -549,6 +589,7 @@ export default function Crm({ sessao, perfil }) {
           atualizar={atualizarRascunho}
           mover={(etapa) => atualizarRascunho({ etapa, tipo_msg_id: null })}
           toggleProduto={toggleProdutoRascunho}
+          setQuantidade={setQuantidadeRascunho}
           registrar={() => {}}
           excluir={fechar}
           concluir={criarRascunho}
@@ -563,6 +604,7 @@ export default function Crm({ sessao, perfil }) {
           atualizar={(patch) => atualizarNegocio(aberto.id, patch)}
           mover={(etapa) => mover(aberto.id, etapa)}
           toggleProduto={(pid) => toggleProduto(aberto.id, pid)}
+          setQuantidade={(pid, q) => setQuantidade(aberto.id, pid, q)}
           registrar={(t, s) => registrar(aberto.id, t, s)}
           excluir={() => excluirNegocio(aberto.id)}
           fechar={fechar} toast={toast}
