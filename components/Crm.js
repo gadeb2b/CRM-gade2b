@@ -15,6 +15,7 @@ import MinhasComissoes from "./MinhasComissoes";
 import Plataforma from "./Plataforma";
 import MinhaEmpresa from "./MinhaEmpresa";
 import EtapasEditor from "./EtapasEditor";
+import { OPERADORAS } from "./ContatosEditor";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcMenu } from "./Icon";
 
 // Soma preço × quantidade dos produtos do negócio
@@ -43,6 +44,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const [filtro, setFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
   const [fprod, setFprod] = useState("");
+  const [foper, setFoper] = useState("");
+  const [contatosMap, setContatosMap] = useState({});
+  const contatosMapRef = useRef({});
+  contatosMapRef.current = contatosMap;
   const [fornecedores, setFornecedores] = useState([]);
   const [tela, setTela] = useState("quadro");
   const [lixeiraAberta, setLixeiraAberta] = useState(false);
@@ -65,7 +70,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const toast = useCallback((t) => {
     setToastTxt(t);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastTxt(""), 2600);
+    toastTimer.current = setTimeout(() => setToastTxt(""), Math.max(2600, String(t).length * 55));
   }, []);
 
   /* ---------- Gravação com atraso (evita uma chamada por tecla) ---------- */
@@ -104,7 +109,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     if (iniciou.current) return;
     iniciou.current = true;
     (async () => {
-      const [n, np, p, t, m, c, fo, et] = await Promise.all([
+      const [n, np, p, t, m, c, fo, et, ct, tl] = await Promise.all([
         supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }),
         supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade"),
         supabase.from("produtos").select("*").order("criado_em"),
@@ -113,8 +118,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
         supabase.from("configuracoes").select("*").maybeSingle(),
         supabase.from("fornecedores").select("*").order("nome"),
         supabase.from("etapas").select("*").order("ordem"),
+        supabase.from("contatos").select("*").order("ordem").order("criado_em"),
+        supabase.from("telefones").select("*").order("criado_em"),
       ]);
-      const falha = [n, np, p, t, m, c, fo, et].find((r) => r.error);
+      const falha = [n, np, p, t, m, c, fo, et, ct, tl].find((r) => r.error);
       if (falha) { setErroCarga(falha.error.message); return; }
 
       let tiposRows = t.data;
@@ -135,6 +142,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       setProdutos(p.data.map((x) => ({ ...x, preco: Number(x.preco) || 0 })));
       setFornecedores(fo.data);
       if (et.data?.length) setEtapas(et.data);
+      const cm = {};
+      ct.data.forEach((x) => { (cm[x.negocio_id] ||= []).push({ ...x, telefones: [] }); });
+      tl.data.forEach((x) => { const c = (cm[x.negocio_id] || []).find((y) => y.id === x.contato_id); if (c) c.telefones.push(x); });
+      setContatosMap(cm);
       setTipos(tiposRows);
       setModelos(mm);
       setAssinatura(c.data?.assinatura || "");
@@ -246,6 +257,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       telefone: "", email: "", canal: "whatsapp", etapa: ABERTAS[0] || "novo", etapa_desde: hoje(),
       acao: "Fazer primeiro contato", acao_data: hoje(), motivo_perda: "", tipo_msg_id: null,
       msg_rascunho: "", assunto_rascunho: "", msg_origem: "", produtos: prods, qtd: prods.length ? { [prods[0]]: 1 } : {},
+      contatos: [{ id: "tmp-c1", nome: "", cargo: "", email: "", telefones: [{ id: "tmp-t1", numero: "", etiqueta: "whatsapp", principal: true, origem: "", operadora: "", portado: false, operadora_consultada_em: null }] }],
       valor: valorDe(prods, {}, produtos),
     });
     setFocoNome(true);
@@ -283,6 +295,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid, quantidade: (rascunho.qtd || {})[pid] || 1 })));
       if (r.error) toast("Negócio criado, mas os produtos não foram salvos: " + r.error.message);
     }
+    await gravarContatosRascunho(data.id, rascunho.contatos);
     const { data: nota } = await supabase.from("interacoes").insert({ negocio_id: data.id, texto: "Lead criado", sistema: true }).select().single();
     setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos, qtd: rascunho.qtd || {} }, ...ns]);
     setInteracoes((m) => ({ ...m, [data.id]: nota ? [nota] : [] }));
@@ -408,6 +421,155 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     },
   };
 
+  /* ---------- Contatos e telefones ---------- */
+  // Copia o telefone e o e-mail principais para o negócio na tela (no banco, um gatilho faz isso)
+  const principalDe = (lista) => {
+    for (const c of lista || []) { const t = (c.telefones || []).find((x) => x.principal); if (t) return { t, c }; }
+    return null;
+  };
+  const sincronizar = useCallback((nid, lista) => {
+    const p = principalDe(lista);
+    const mail = (p?.c.email) || (lista || []).find((c) => c.email)?.email || "";
+    setNegocios((ns) => ns.map((d) => (d.id === nid ? { ...d, telefone: p?.t.numero || "", email: mail } : d)));
+  }, []);
+  const mudarContatos = useCallback((nid, fn) => {
+    setContatosMap((m) => {
+      const lista = fn(m[nid] || []);
+      sincronizar(nid, lista);
+      return { ...m, [nid]: lista };
+    });
+  }, [sincronizar]);
+
+  const opsPara = useCallback((nid) => {
+    const lista = () => contatosMapRef.current[nid] || [];
+    const acharTel = (tid) => { for (const c of lista()) { const t = (c.telefones || []).find((x) => x.id === tid); if (t) return t; } return null; };
+    const promover = async () => {
+      if (principalDe(lista())) return;
+      const primeiro = lista().flatMap((c) => c.telefones || [])[0];
+      if (!primeiro) return;
+      mudarContatos(nid, (l) => l.map((c) => ({ ...c, telefones: c.telefones.map((x) => (x.id === primeiro.id ? { ...x, principal: true } : x)) })));
+      await supabase.from("telefones").update({ principal: true }).eq("id", primeiro.id);
+    };
+    return {
+      addContato: async (extra = {}) => {
+        const { data, error } = await supabase.from("contatos").insert({ negocio_id: nid, ordem: lista().length, ...extra }).select().single();
+        if (error) { toast("Não foi possível criar o contato: " + error.message); return null; }
+        const novo = { ...data, telefones: [] };
+        mudarContatos(nid, (l) => [...l, novo]);
+        return novo;
+      },
+      updContato: (cid, patch) => {
+        mudarContatos(nid, (l) => l.map((c) => (c.id === cid ? { ...c, ...patch } : c)));
+        salvarDepois("contatos", cid, patch);
+      },
+      delContato: async (cid) => {
+        const c = lista().find((x) => x.id === cid);
+        if (c && (c.nome || c.email || (c.telefones || []).some((t) => t.numero)) && !confirm(`Remover o contato ${c.nome || "sem nome"} e os telefones dele?`)) return;
+        delete pend.current["contatos:" + cid];
+        const { error } = await supabase.from("contatos").delete().eq("id", cid);
+        if (error) { toast(error.message); return; }
+        mudarContatos(nid, (l) => l.filter((x) => x.id !== cid));
+        await promover();
+      },
+      addTelefone: async (cid, extra = {}) => {
+        const temPrincipal = !!principalDe(lista());
+        const { data, error } = await supabase.from("telefones")
+          .insert({ contato_id: cid, negocio_id: nid, numero: "", etiqueta: "whatsapp", principal: !temPrincipal, ...extra }).select().single();
+        if (error) { toast("Não foi possível adicionar o telefone: " + error.message); return null; }
+        mudarContatos(nid, (l) => l.map((c) => (c.id === cid ? { ...c, telefones: [...c.telefones, data] } : c)));
+        return data;
+      },
+      updTelefone: (tid, patch) => {
+        mudarContatos(nid, (l) => l.map((c) => ({ ...c, telefones: c.telefones.map((x) => (x.id === tid ? { ...x, ...patch } : x)) })));
+        salvarDepois("telefones", tid, patch);
+      },
+      delTelefone: async (tid) => {
+        const t = acharTel(tid);
+        if (t?.numero && !confirm(`Remover o telefone ${t.numero}?`)) return;
+        delete pend.current["telefones:" + tid];
+        const { error } = await supabase.from("telefones").delete().eq("id", tid);
+        if (error) { toast(error.message); return; }
+        mudarContatos(nid, (l) => l.map((c) => ({ ...c, telefones: c.telefones.filter((x) => x.id !== tid) })));
+        if (t?.principal) await promover();
+      },
+      definirPrincipal: async (tid) => {
+        const atual = principalDe(lista());
+        salvarTudoAgora();
+        if (atual) { const r = await supabase.from("telefones").update({ principal: false }).eq("id", atual.t.id); if (r.error) { toast(r.error.message); return; } }
+        const r2 = await supabase.from("telefones").update({ principal: true }).eq("id", tid);
+        if (r2.error) { toast(r2.error.message); return; }
+        mudarContatos(nid, (l) => l.map((c) => ({ ...c, telefones: c.telefones.map((x) => ({ ...x, principal: x.id === tid })) })));
+      },
+      salvarOperadora: async (tid, patch) => {
+        mudarContatos(nid, (l) => l.map((c) => ({ ...c, telefones: c.telefones.map((x) => (x.id === tid ? { ...x, ...patch } : x)) })));
+        const { error } = await supabase.from("telefones").update(patch).eq("id", tid);
+        if (error) toast("Não foi possível salvar a operadora: " + error.message);
+        else toast(`Operadora salva: ${patch.operadora}`);
+      },
+    };
+  }, [mudarContatos, salvarDepois, salvarTudoAgora, toast]);
+
+  // Contatos do rascunho (novo negócio): ficam só na tela até clicar em Concluir
+  const tmp = () => "tmp-" + Math.random().toString(36).slice(2, 10);
+  const opsRascunho = {
+    addContato: async (extra = {}) => {
+      const novo = { id: tmp(), nome: "", cargo: "", email: "", ...extra, telefones: [] };
+      setRascunho((r) => ({ ...r, contatos: [...(r.contatos || []), novo] }));
+      return novo;
+    },
+    updContato: (cid, patch) => setRascunho((r) => ({ ...r, contatos: r.contatos.map((c) => (c.id === cid ? { ...c, ...patch } : c)) })),
+    delContato: async (cid) => setRascunho((r) => {
+      const contatos = r.contatos.filter((c) => c.id !== cid);
+      if (!contatos.some((c) => c.telefones.some((t) => t.principal)) && contatos[0]?.telefones[0]) contatos[0].telefones[0] = { ...contatos[0].telefones[0], principal: true };
+      return { ...r, contatos };
+    }),
+    addTelefone: async (cid, extra = {}) => {
+      const t = { id: tmp(), numero: "", etiqueta: "whatsapp", principal: false, origem: "", operadora: "", portado: false, operadora_consultada_em: null, ...extra };
+      setRascunho((r) => {
+        const temPrincipal = r.contatos.some((c) => c.telefones.some((x) => x.principal));
+        return { ...r, contatos: r.contatos.map((c) => (c.id === cid ? { ...c, telefones: [...c.telefones, { ...t, principal: !temPrincipal }] } : c)) };
+      });
+      return t;
+    },
+    updTelefone: (tid, patch) => setRascunho((r) => ({ ...r, contatos: r.contatos.map((c) => ({ ...c, telefones: c.telefones.map((x) => (x.id === tid ? { ...x, ...patch } : x)) })) })),
+    delTelefone: async (tid) => setRascunho((r) => {
+      let contatos = r.contatos.map((c) => ({ ...c, telefones: c.telefones.filter((x) => x.id !== tid) }));
+      if (!contatos.some((c) => c.telefones.some((t) => t.principal))) {
+        const ci = contatos.findIndex((c) => c.telefones.length);
+        if (ci >= 0) contatos = contatos.map((c, i) => (i === ci ? { ...c, telefones: c.telefones.map((x, j) => (j === 0 ? { ...x, principal: true } : x)) } : c));
+      }
+      return { ...r, contatos };
+    }),
+    definirPrincipal: async (tid) => setRascunho((r) => ({ ...r, contatos: r.contatos.map((c) => ({ ...c, telefones: c.telefones.map((x) => ({ ...x, principal: x.id === tid })) })) })),
+    salvarOperadora: async (tid, patch) => setRascunho((r) => ({ ...r, contatos: r.contatos.map((c) => ({ ...c, telefones: c.telefones.map((x) => (x.id === tid ? { ...x, ...patch } : x)) })) })),
+  };
+
+  // Grava os contatos do rascunho depois que o negócio é criado
+  async function gravarContatosRascunho(nid, contatos) {
+    const uteis = (contatos || []).map((c) => ({ ...c, telefones: c.telefones.filter((t) => t.numero.trim()) }))
+      .filter((c) => c.nome.trim() || c.cargo.trim() || c.email.trim() || c.telefones.length);
+    if (uteis.length && !uteis.some((c) => c.telefones.some((t) => t.principal))) {
+      const ci = uteis.findIndex((c) => c.telefones.length);
+      if (ci >= 0) uteis[ci].telefones[0] = { ...uteis[ci].telefones[0], principal: true };
+    }
+    const salvos = [];
+    for (const [i, c] of uteis.entries()) {
+      const { data, error } = await supabase.from("contatos").insert({ negocio_id: nid, nome: c.nome, cargo: c.cargo, email: c.email, ordem: i }).select().single();
+      if (error) { toast("Contato não salvo: " + error.message); continue; }
+      let tels = [];
+      if (c.telefones.length) {
+        const r = await supabase.from("telefones").insert(c.telefones.map((t) => ({
+          contato_id: data.id, negocio_id: nid, numero: t.numero, etiqueta: t.etiqueta, principal: t.principal, origem: t.origem || "",
+          operadora: t.operadora || "", portado: !!t.portado, operadora_consultada_em: t.operadora_consultada_em || null,
+        }))).select();
+        if (r.error) toast("Telefones não salvos: " + r.error.message); else tels = r.data;
+      }
+      salvos.push({ ...data, telefones: tels });
+    }
+    setContatosMap((m) => ({ ...m, [nid]: salvos }));
+    sincronizar(nid, salvos);
+  }
+
   /* ---------- Etapas do quadro ---------- */
   const acoesEtapas = {
     renomear: async (chave, nome) => {
@@ -452,9 +614,17 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     if (filtro === "atrasados") { const s = statusAcao(d); if (!s || s.cls !== "late") return false; }
     if (fprod && !d.produtos.includes(fprod)) return false;
     if (fresp && d.user_id !== fresp) return false;
+    if (foper) {
+      const tels = (contatosMap[d.id] || []).flatMap((c) => c.telefones || []);
+      if (foper === "sem" ? tels.some((t) => t.operadora) : !tels.some((t) => t.operadora === foper)) return false;
+    }
     if (busca) {
-      const t = (d.nome + " " + d.empresa + " " + d.telefone + " " + d.email).toLowerCase();
-      if (!t.includes(busca.toLowerCase())) return false;
+      const cs = contatosMap[d.id] || [];
+      const extra = cs.map((c) => `${c.nome} ${c.email} ${(c.telefones || []).map((t) => t.numero + " " + t.numero.replace(/\D/g, "")).join(" ")}`).join(" ");
+      const t = (d.nome + " " + d.empresa + " " + d.razao_social + " " + d.telefone + " " + d.email + " " + extra).toLowerCase();
+      const b = busca.toLowerCase().trim();
+      const bDig = b.replace(/\D/g, "");
+      if (!t.includes(b) && !(bDig.length >= 4 && t.includes(bDig))) return false;
     }
     return true;
   }
@@ -568,6 +738,11 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
                 return ps.length ? <optgroup key={f.id || "sem"} label={f.nome}>{ps.map((p) => <option key={p.id} value={p.id}>{p.nome || "Sem nome"}</option>)}</optgroup> : null;
               })}
             </select>
+            <select className="fsel" aria-label="Filtrar por operadora" value={foper} onChange={(e) => setFoper(e.target.value)}>
+              <option value="">Todas as operadoras</option>
+              {OPERADORAS.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="sem">Sem operadora consultada</option>
+            </select>
             {ehAdmin && (
               <select className="fsel" aria-label="Filtrar por responsável" value={fresp} onChange={(e) => setFresp(e.target.value)}>
                 <option value="">Todos os responsáveis</option>
@@ -625,7 +800,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
                 <div className="col-sum">{brl.format(soma)}</div>
               </div>
               <div className="cards">
-                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} resp={ehAdmin ? nomes[d.user_id] : null} onOpen={() => abrir(d.id)} />)
+                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} resp={ehAdmin ? nomes[d.user_id] : null} operadora={principalDe(contatosMap[d.id])?.t.operadora} onOpen={() => abrir(d.id)} />)
                   : <div className="empty">{busca || fprod || filtro !== "todos" ? "Nenhum negócio com esse filtro" : "Arraste um card para cá"}</div>}
               </div>
             </section>
@@ -639,7 +814,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       {rascunho && (
         <Painel
           novo criando={criando}
-          d={rascunho} ctx={ctx} interacoes={[]} iaDisponivel={iaDisponivel} focoNome={focoNome}
+          d={rascunho} contatos={rascunho.contatos || []} opsContatos={opsRascunho} ctx={ctx} interacoes={[]} iaDisponivel={iaDisponivel} focoNome={focoNome}
           responsaveis={ehAdmin ? pessoas.filter((p) => p.status === "ativo") : null}
           atualizar={atualizarRascunho}
           mover={(etapa) => atualizarRascunho({ etapa, tipo_msg_id: null })}
@@ -654,7 +829,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
 
       {aberto && (
         <Painel
-          d={aberto} ctx={ctx} interacoes={interacoes[aberto.id] || []} iaDisponivel={iaDisponivel} focoNome={focoNome}
+          d={aberto} contatos={contatosMap[aberto.id] || []} opsContatos={opsPara(aberto.id)} ctx={ctx} interacoes={interacoes[aberto.id] || []} iaDisponivel={iaDisponivel} focoNome={focoNome}
           responsaveis={ehAdmin ? pessoas.filter((p) => p.status === "ativo" || p.user_id === aberto.user_id) : null}
           atualizar={(patch) => atualizarNegocio(aberto.id, patch)}
           mover={(etapa) => mover(aberto.id, etapa)}
@@ -684,7 +859,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   );
 }
 
-function Card({ d, produtos, resp, onOpen }) {
+function Card({ d, produtos, resp, operadora, onOpen }) {
   const s = statusAcao(d);
   const ps = prodsDe(d, produtos);
   const parado = ABERTAS.includes(d.etapa) ? diff(hoje(), d.etapa_desde) : 0;
@@ -694,14 +869,20 @@ function Card({ d, produtos, resp, onOpen }) {
       onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(); } }}
       onDragStart={(ev) => { ev.dataTransfer.setData("text/plain", d.id); ev.dataTransfer.effectAllowed = "move"; ev.currentTarget.classList.add("dragging"); }}
       onDragEnd={(ev) => ev.currentTarget.classList.remove("dragging")}>
-      <div className="c-top"><span className="c-name">{d.nome || "Sem nome"}</span><span className="c-val">{brlExato(d.valor)}</span></div>
-      {d.empresa && <div className="c-co">{d.empresa}</div>}
-      {ps.length > 0 && <div className="c-prod">{ps.map((p) => <span key={p.id}>{p.nome}</span>)}</div>}
+      <div className="c-top"><span className="c-name" title={d.nome}>{d.nome || "Sem nome"}</span><span className="c-val">{brlExato(d.valor)}</span></div>
+      {d.empresa && <div className="c-co" title={d.empresa}>{d.empresa}</div>}
+      {ps.length > 0 && (
+        <div className="c-prod" title={ps.map((p) => p.nome).join(", ")}>
+          {ps.slice(0, 2).map((p) => <span key={p.id}>{p.nome}</span>)}
+          {ps.length > 2 && <span className="mais">+{ps.length - 2}</span>}
+        </div>
+      )}
       {d.acao && s && <div className={"c-next " + s.cls}><IcClock /><span><b>{s.txt}:</b> {d.acao}</span></div>}
       {d.etapa === "perdido" && d.motivo_perda && <div className="c-next">{d.motivo_perda}</div>}
       <div className="c-foot">
         <span className="ch-tag">{d.canal === "whatsapp" ? <><IcChat /> WhatsApp</> : <><IcMail /> E-mail</>}</span>
-        {resp && <span className="c-resp">{resp}</span>}
+        {operadora && <span className="op-mini" title="Operadora do número principal">{operadora}</span>}
+        {resp && <span className="c-resp" title={resp}>{resp}</span>}
         {parado >= 7 && <span className="stale">parado há {parado} dias</span>}
       </div>
     </div>

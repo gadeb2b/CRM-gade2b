@@ -2,11 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, CNAES } from "../lib/constantes";
-import { fmtData, temTel, temMail, waLink, mailLink, soDigitos, cnpjValido, formatarCnpj } from "../lib/util";
+import { fmtData, soDigitos, cnpjValido, formatarCnpj, waLinkPara, mailLinkPara } from "../lib/util";
+import ContatosEditor from "./ContatosEditor";
 import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
-export default function Painel({ novo = false, criando = false, concluir, d, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, registrar, excluir, fechar, toast }) {
+export default function Painel({ novo = false, criando = false, concluir, d, contatos = [], opsContatos, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, registrar, excluir, fechar, toast }) {
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
@@ -95,15 +96,9 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
         situacao_cnpj: j.situacao || "",
       };
       if (!d.empresa.trim()) patch.empresa = j.nome_fantasia || j.razao_social || "";
-      if (!d.telefone.trim() && j.telefone) patch.telefone = j.telefone;
-      if (!d.email.trim() && j.email) patch.email = j.email;
       atualizar(patch);
+      const obs = await daReceita(j);
       const ativa = !j.situacao || j.situacao.toUpperCase() === "ATIVA";
-      const obs = [];
-      if (!j.email) obs.push("A Receita não tem e-mail cadastrado para este CNPJ.");
-      else if (d.email.trim() && d.email.trim().toLowerCase() !== j.email) obs.push(`O e-mail da Receita (${j.email}) não foi usado porque o campo já estava preenchido.`);
-      if (!j.telefone) obs.push("A Receita não tem telefone cadastrado.");
-      else if (d.telefone.trim() && soDigitos(d.telefone) !== soDigitos(j.telefone)) obs.push(`Telefone da Receita: ${j.telefone} (não foi usado porque o campo já estava preenchido).`);
       setCnpjStatus({
         cls: ativa ? "" : "err",
         t: (ativa
@@ -114,6 +109,29 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
       setCnpjStatus({ cls: "err", t: e.message });
     }
     setBuscandoCnpj(false);
+  }
+
+  // Telefone e e-mail da Receita entram nos contatos (sem apagar nada que já exista)
+  async function daReceita(j) {
+    const obs = [];
+    const numeros = contatos.flatMap((c) => c.telefones || []).map((t) => soDigitos(t.numero));
+    let alvo = contatos[0];
+    if ((j.telefone || j.email) && !alvo) alvo = await opsContatos.addContato({ cargo: "Contato da Receita (pode ser do contador)" });
+    if (j.telefone && alvo) {
+      if (numeros.includes(soDigitos(j.telefone))) obs.push("O telefone da Receita já estava nos contatos.");
+      else {
+        const vazio = (alvo.telefones || []).find((t) => !t.numero.trim());
+        if (vazio) opsContatos.updTelefone(vazio.id, { numero: j.telefone, etiqueta: "fixo", origem: "receita" });
+        else await opsContatos.addTelefone(alvo.id, { numero: j.telefone, etiqueta: "fixo", origem: "receita" });
+        obs.push(`Telefone da Receita adicionado aos contatos (${j.telefone}).`);
+      }
+    } else if (!j.telefone) obs.push("A Receita não tem telefone cadastrado.");
+    if (j.email && alvo) {
+      if (contatos.some((c) => (c.email || "").toLowerCase() === j.email)) { /* já existe */ }
+      else if (!alvo.email) { opsContatos.updContato(alvo.id, { email: j.email }); obs.push("E-mail da Receita adicionado ao contato."); }
+      else obs.push(`E-mail da Receita: ${j.email} (o contato já tinha outro e-mail).`);
+    } else if (!j.email) obs.push("A Receita não tem e-mail cadastrado.");
+    return obs;
   }
 
   function mudarCnae(v) {
@@ -127,6 +145,18 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
     registrar(nota.trim(), false);
     setNota("");
   }
+
+  // Para quem enviar: todos os telefones e e-mails dos contatos (o principal vem primeiro)
+  const ROT = { whatsapp: "WhatsApp", celular: "Celular", fixo: "Fixo", outro: "Outro" };
+  const destinosTel = contatos.flatMap((c) => (c.telefones || []).filter((x) => soDigitos(x.numero).length >= 10)
+    .map((x) => ({ id: x.id, numero: x.numero, principal: x.principal, rotulo: `${c.nome || "Sem nome"} · ${x.numero} (${ROT[x.etiqueta] || x.etiqueta})${x.principal ? " ★" : ""}` })))
+    .sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0));
+  const destinosMail = contatos.filter((c) => /.+@.+\..+/.test(c.email || ""))
+    .map((c) => ({ id: c.id, email: c.email, rotulo: `${c.nome || "Sem nome"} · ${c.email}` }));
+  const [destTel, setDestTel] = useState(null);
+  const [destMail, setDestMail] = useState(null);
+  const telEscolhido = destinosTel.find((x) => x.id === destTel) || destinosTel[0] || null;
+  const mailEscolhido = destinosMail.find((x) => x.id === destMail) || destinosMail[0] || null;
 
   const descEnvio = t ? t.nome + (ps.length ? " – " + juntar(ps.map((p) => p.nome)) : "") : "";
   const campo = (k, extra = {}) => ({ value: d[k] ?? "", onChange: (e) => atualizar({ [k]: extra.num ? Number(e.target.value) || 0 : e.target.value }) });
@@ -174,12 +204,14 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
           <div className="field"><label htmlFor="f-razao">Razão social</label><input id="f-razao" {...campo("razao_social")} /></div>
           <div className="field"><label htmlFor="f-cnae">CNAE</label><input id="f-cnae" list="cnaes" placeholder="Ex.: 9602-5/02" value={d.cnae} onChange={(e) => mudarCnae(e.target.value)} /></div>
           <div className="field"><label htmlFor="f-ativ">Atividade</label><input id="f-ativ" placeholder="Preenchida pelo CNAE" {...campo("atividade")} /></div>
-          <div className="field"><label htmlFor="f-tel">Telefone / WhatsApp</label><input id="f-tel" inputMode="tel" {...campo("telefone")} /></div>
-          <div className="field"><label htmlFor="f-mail">E-mail</label><input id="f-mail" type="email" {...campo("email")} /></div>
           <div className="field"><label htmlFor="f-cid">Cidade</label><input id="f-cid" {...campo("cidade")} /></div>
           <div className="field"><label htmlFor="f-uf">UF</label><input id="f-uf" maxLength={2} {...campo("uf")} /></div>
         </div>
         <datalist id="cnaes">{CNAES.map((c) => <option key={c[0]} value={c[0] + " – " + c[1]} />)}</datalist>
+
+        <h3>Contatos</h3>
+        <p className="muted" style={{ margin: "-4px 0 10px" }}>Pessoas da empresa cliente. A ★ marca o número principal: ele aparece no card e é o padrão para enviar mensagens.</p>
+        <ContatosEditor contatos={contatos} ops={opsContatos} toast={toast} />
 
         <h3>Produtos oferecidos</h3>
         <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} setQtd={setQuantidade} />
@@ -202,7 +234,23 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
             {iaDisponivel && <button className="btn small ai" onClick={gerarIA} disabled={gerando}><IcSpark /> Gerar com IA</button>}
             {gerando && <button className="btn small ghost" onClick={() => ctrl.current?.abort()}>Parar</button>}
           </div>
-          {(d.canal === "email" || temMail(d)) && (
+          {destinosTel.length > 1 && (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label htmlFor="m-dest-tel">Enviar WhatsApp para</label>
+              <select id="m-dest-tel" value={telEscolhido?.id || ""} onChange={(e) => setDestTel(e.target.value)}>
+                {destinosTel.map((x) => <option key={x.id} value={x.id}>{x.rotulo}</option>)}
+              </select>
+            </div>
+          )}
+          {destinosMail.length > 1 && (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label htmlFor="m-dest-mail">Enviar e-mail para</label>
+              <select id="m-dest-mail" value={mailEscolhido?.id || ""} onChange={(e) => setDestMail(e.target.value)}>
+                {destinosMail.map((x) => <option key={x.id} value={x.id}>{x.rotulo}</option>)}
+              </select>
+            </div>
+          )}
+          {(d.canal === "email" || mailEscolhido) && (
             <div className="field" style={{ marginBottom: 8 }}>
               <label htmlFor="m-assunto">Assunto do e-mail</label>
               <input id="m-assunto" value={d.assunto_rascunho} onChange={(e) => atualizar({ assunto_rascunho: e.target.value })} />
@@ -213,12 +261,12 @@ export default function Painel({ novo = false, criando = false, concluir, d, ctx
           <div className={"status" + (aviso?.cls ? " " + aviso.cls : "")}>{aviso ? aviso.t : statusPadrao}</div>
           {novo && <p className="muted" style={{ margin: "0 0 10px" }}>Clique em Concluir para salvar o negócio antes de enviar a mensagem.</p>}
           <div className="send">
-            <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !temTel(d)} href={!novo && temTel(d) ? waLink(d) : undefined}
-              onClick={() => { if (!novo && temTel(d)) { registrar("WhatsApp enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
+            <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !telEscolhido} href={!novo && telEscolhido ? waLinkPara(telEscolhido.numero, d.msg_rascunho) : undefined}
+              onClick={() => { if (!novo && telEscolhido) { registrar(`WhatsApp enviado para ${telEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); } }}>
               <IcChat /> Abrir WhatsApp
             </a>
-            <a className="btn mail" aria-disabled={novo || !temMail(d)} href={!novo && temMail(d) ? mailLink(d) : undefined}
-              onClick={() => { if (!novo && temMail(d)) { registrar("E-mail enviado: " + descEnvio, true); toast("Envio registrado no histórico"); } }}>
+            <a className="btn mail" aria-disabled={novo || !mailEscolhido} href={!novo && mailEscolhido ? mailLinkPara(mailEscolhido.email, d.assunto_rascunho, d.msg_rascunho) : undefined}
+              onClick={() => { if (!novo && mailEscolhido) { registrar(`E-mail enviado para ${mailEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); } }}>
               <IcMail /> Abrir e-mail
             </a>
           </div>

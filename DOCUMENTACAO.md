@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 20 (01/10/2026).
+Última atualização: versão 22 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -13,7 +13,7 @@ CRM de vendas em formato de quadro kanban, criado para a Gade2B (vendas por What
 Principais recursos:
 
 - Quadro kanban com etapas personalizáveis por empresa, funil de valores e filtros.
-- Negócios com dados do cliente, busca automática por CNPJ, produtos com quantidade, mensagens prontas e histórico.
+- Negócios com dados do cliente, busca automática por CNPJ, vários contatos (com vários telefones e operadora de cada número), produtos com quantidade, mensagens prontas e histórico.
 - Catálogo de fornecedores e produtos em formato de planilha, com colagem direto do Excel.
 - Tipos de mensagem com modelos e variáveis, mensagens específicas por produto e geração com IA (opcional).
 - Usuários com aprovação por convite e três papéis: vendedor, admin e super admin.
@@ -72,7 +72,8 @@ app/
   api/exportar-empresa/route.js Exportação completa de uma empresa (só dono da plataforma)
 components/
   Crm.js            Tela principal: cabeçalho, menu, quadro, funil, carga e gravação de dados
-  Painel.js         Painel do negócio (dados, CNPJ, produtos com quantidade, mensagem, histórico)
+  Painel.js         Painel do negócio (dados, CNPJ, contatos, produtos com quantidade, mensagem, histórico)
+  ContatosEditor.js Contatos do negócio, telefones, número principal e consulta de operadora
   Login.js          Entrar, solicitar acesso (só com convite) e esqueci minha senha
   NovaSenha.js      Formulário de nova senha
   Catalogo.js       Catálogo em planilha: fornecedores, produtos, comissões, colar do Excel
@@ -121,6 +122,7 @@ vercel.json       Agendamento do backup diário (06:00 UTC = 03:00 de Brasília)
 | `09-comissao-por-fornecedor.sql` | Regras de comissão por vendedor, fornecedor e categoria |
 | `10-plataforma-multiempresa.sql` | Empresas, separação de dados, convites, marca, painel da plataforma |
 | `11-etapas-convites-logo.sql` | Etapas por empresa, cadastro só por convite e permissão do logo |
+| `12-contatos-telefones.sql` | Contatos do negócio, vários telefones, número principal e operadora |
 
 Todos os scripts já foram executados. Um script novo deve ser rodado **antes** de subir a versão do código que depende dele.
 
@@ -131,6 +133,7 @@ Todos os scripts já foram executados. Um script novo deve ser rodado **antes** 
 - `perfis`: usuários (empresa, papel, status, comissão padrão).
 - `etapas`: etapas do quadro de cada empresa (`ganho` e `perdido` são fixas, só renomeáveis).
 - `negocios`, `negocio_produtos` (com quantidade), `interacoes` (histórico).
+- `contatos` (pessoas da empresa cliente) e `telefones` (vários por contato; um principal por negócio, com operadora, se foi portado e data da consulta). O telefone principal e o e-mail do contato dele são copiados automaticamente para `negocios.telefone` e `negocios.email`.
 - `fornecedores`, `produtos` (com comissão), `tipos_mensagem`, `modelos_produto`.
 - `recebimentos`: uma linha por venda, produto e parcela, com o repasse do vendedor.
 - `comissoes_vendedor`: regras por vendedor, fornecedor e categoria.
@@ -185,6 +188,15 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 - `{preco}` já inclui "R$", centavos e "/mês" nos produtos mensais (o sistema evita "R$ R$").
 - Mensagem específica do produto substitui o modelo do tipo quando o negócio tem só aquele produto.
 - Envio: abre o WhatsApp (links wa.me) ou o programa de e-mail do usuário; o envio é registrado no histórico.
+
+### Contatos e operadora
+
+- Cada negócio tem vários contatos (nome, cargo, e-mail), cada um com vários telefones (WhatsApp, celular, fixo, outro).
+- A ★ marca o número principal: aparece no card, é o padrão nos envios e será usado pela fila de disparos.
+- Ao enviar, dá para escolher o número ou e-mail de qualquer contato; o histórico registra para quem foi.
+- A busca encontra o negócio por qualquer nome, e-mail ou número dos contatos (também só com os dígitos).
+- Operadora: o botão "Consultar operadora" copia o número e abre o site da ABR Telecom (gratuito, com captcha); depois é só clicar na operadora que apareceu. Fica salva com a data da consulta (aviso quando passa de 6 meses). O quadro filtra por operadora.
+- A consulta de CNPJ adiciona o telefone e o e-mail da Receita aos contatos, marcados "da Receita" (costumam ser do contador).
 
 ### Etapas
 
@@ -271,6 +283,7 @@ O login reconhece a empresa pelo domínio ou pelo link de convite e mostra a mar
 Desenvolvimento:
 
 - Importar a planilha de contatos atual (falta ver o formato da planilha).
+- Consulta automática de operadora por API paga (ex.: BigDataCorp, cerca de R$ 0,26 por consulta), se o volume justificar.
 - Fila de disparos do WhatsApp (links wa.me, com limite diário, intervalo e "não quer receber").
 - "Alterar minha senha" dentro do sistema.
 - Recriar parcelas automaticamente quando um negócio volta para "ganho".
@@ -305,3 +318,5 @@ Do lado do negócio:
 | v18 | Comissão por vendedor, fornecedor e categoria |
 | v19 | Plataforma multiempresa (white label) |
 | v20 | Etapas personalizáveis, cadastro só por convite, exportação por empresa, e-mails neutros |
+| v21 | Documentação do projeto |
+| v22 | Vários contatos e telefones por negócio, operadora de cada número, card com tamanho fixo |
