@@ -27,7 +27,7 @@ function formatarTel(ddd, num) {
 }
 
 async function buscar(url) {
-  const r = await fetch(url, { headers: { "User-Agent": "CRM-Gade2B/1.0" }, signal: AbortSignal.timeout(8000), cache: "no-store" });
+  const r = await fetch(url, { headers: { "User-Agent": "CRM-Vendas/1.0" }, signal: AbortSignal.timeout(8000), cache: "no-store" });
   if (r.status === 404) return { naoEncontrado: true };
   if (!r.ok) throw new Error("status " + r.status);
   return { dados: await r.json() };

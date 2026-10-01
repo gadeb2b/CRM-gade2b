@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { fmtData } from "../lib/util";
 import { IcX } from "./Icon";
+import { LinkConvite } from "./MinhaEmpresa";
 
 const PAPEIS = [["vendedor", "Vendedor"], ["admin", "Admin"], ["super_admin", "Super admin"]];
 const nomePapel = (p) => PAPEIS.find((x) => x[0] === p)?.[1] || p;
 
-export default function Usuarios({ pessoas, meId, recarregar, fechar, toast }) {
+export default function Usuarios({ empresa, pessoas, meId, recarregar, fechar, toast }) {
   const [papelNovo, setPapelNovo] = useState({});
   const [ocupado, setOcupado] = useState(null);
   const fecharRef = useRef(null);
@@ -40,7 +41,14 @@ export default function Usuarios({ pessoas, meId, recarregar, fechar, toast }) {
           Vendedor vê e edita só os próprios negócios. Admin vê todos os negócios e cadastra produtos e mensagens. Super admin também aprova e gerencia usuários.
         </p>
 
-        <h3 style={{ marginTop: 8 }}>Aguardando aprovação {pendentes.length > 0 && <span className="badge">{pendentes.length}</span>}</h3>
+        {empresa && (
+          <>
+            <h3 style={{ marginTop: 0 }}>Link de convite</h3>
+            <p className="muted" style={{ marginTop: 0 }}>Envie para quem vai usar o sistema. Os cadastros feitos por ele aparecem logo abaixo, para você aprovar.</p>
+            <LinkConvite key={empresa.codigo_convite} empresa={empresa} toast={toast} />
+          </>
+        )}
+        <h3>Aguardando aprovação {pendentes.length > 0 && <span className="badge">{pendentes.length}</span>}</h3>
         {pendentes.length ? pendentes.map((p) => (
           <div className="urow" key={p.user_id}>
             {quem(p)}

@@ -1,6 +1,6 @@
-# CRM Gade2B
+# CRM de vendas (plataforma multiempresa)
 
-CRM de vendas em kanban para vendas por WhatsApp e e-mail.
+CRM de vendas em kanban para vendas por WhatsApp e e-mail, com várias empresas na mesma plataforma (white label). Cada empresa tem seus dados separados, sua marca e seus usuários.
 
 Stack: Next.js (hospedado na Vercel) + Supabase (banco de dados e login).
 

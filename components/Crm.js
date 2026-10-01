@@ -12,6 +12,8 @@ import Catalogo from "./Catalogo";
 import Lixeira from "./Lixeira";
 import Financeiro from "./Financeiro";
 import MinhasComissoes from "./MinhasComissoes";
+import Plataforma from "./Plataforma";
+import MinhaEmpresa from "./MinhaEmpresa";
 import { IcChat, IcMail, IcClock, IcPlus, IcSearch, IcMenu } from "./Icon";
 
 // Soma preço × quantidade dos produtos do negócio
@@ -19,7 +21,7 @@ function valorDe(lista, qtd, produtos) {
   return Math.round(prodsDe({ produtos: lista }, produtos).reduce((s, p) => s + (+p.preco || 0) * ((qtd || {})[p.id] || 1), 0) * 100) / 100;
 }
 
-export default function Crm({ sessao, perfil }) {
+export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmpresa }) {
   const userId = sessao.user.id;
   const ehAdmin = perfil.papel === "admin" || perfil.papel === "super_admin";
   const ehSuper = perfil.papel === "super_admin";
@@ -44,6 +46,7 @@ export default function Crm({ sessao, perfil }) {
   const [tela, setTela] = useState("quadro");
   const [lixeiraAberta, setLixeiraAberta] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [empresaAberta, setEmpresaAberta] = useState(false);
   const menuRef = useRef(null);
   const [abertoId, setAbertoId] = useState(null);
   const [focoNome, setFocoNome] = useState(false);
@@ -220,6 +223,7 @@ export default function Crm({ sessao, perfil }) {
     setUsuariosAberto(false);
     setBackupAberto(false);
     setLixeiraAberta(false);
+    setEmpresaAberta(false);
   }, [rascunho, salvarTudoAgora]);
 
   // "Novo lead" só abre um rascunho; o negócio é gravado ao clicar em Concluir.
@@ -412,10 +416,10 @@ export default function Crm({ sessao, perfil }) {
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, empresaAberta, fechar]);
 
   useEffect(() => {
     if (!menuAberto) return;
@@ -451,10 +455,11 @@ export default function Crm({ sessao, perfil }) {
     <div className="app">
       <header>
         <div className="hrow">
-          <button type="button" className="marca" title="Voltar ao quadro" aria-label="Gade2B CRM, voltar ao quadro"
+          <button type="button" className="marca" title="Voltar ao quadro" aria-label={(empresa?.nome || "CRM") + ", voltar ao quadro"}
             onClick={() => { fechar(); setTela("quadro"); }}>
-            <img src="/logo-icone.png" alt="" />
-            <img src="/logo-texto.png" alt="" style={{ height: 22 }} />
+            {empresa?.logo_url ? <img className="logo-empresa" src={empresa.logo_url} alt="" />
+              : !empresa || empresa.slug === "gade2b" ? <><img src="/logo-icone.png" alt="" /><img src="/logo-texto.png" alt="" style={{ height: 22 }} /></>
+              : <span className="nome-empresa">{empresa.nome}</span>}
             <span className="sep" />
             <span className="mod">CRM</span>
           </button>
@@ -485,6 +490,9 @@ export default function Crm({ sessao, perfil }) {
                 )}
                 {ehAdmin && <button role="menuitem" onClick={() => abrirMenu(() => setBackupAberto(true))}>Backup e exportação</button>}
                 <div className="menu-sep" />
+                {ehSuper && empresa && <button role="menuitem" onClick={() => abrirMenu(() => setEmpresaAberta(true))}>Minha empresa</button>}
+                {plataforma && <button role="menuitem" className={tela === "plataforma" ? "atual" : ""} onClick={() => abrirMenu(() => setTela("plataforma"))}>Plataforma (empresas clientes)</button>}
+                {(ehSuper || plataforma) && <div className="menu-sep" />}
                 <button role="menuitem" className="sair" onClick={() => { setMenuAberto(false); salvarTudoAgora(); supabase.auth.signOut(); }}>Sair</button>
               </div>
             )}
@@ -528,9 +536,11 @@ export default function Crm({ sessao, perfil }) {
       {tela === "catalogo" ? (
         <Catalogo fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} cfg={cfg} voltar={() => setTela("quadro")} />
       ) : tela === "financeiro" ? (
-        <Financeiro fornecedores={fornecedores} produtos={produtos} pessoas={pessoas} recarregarPessoas={carregarPessoas} toast={toast} />
+        <Financeiro empresaId={empresa?.id} fornecedores={fornecedores} produtos={produtos} pessoas={pessoas} recarregarPessoas={carregarPessoas} toast={toast} />
       ) : tela === "minhas" ? (
         <MinhasComissoes toast={toast} />
+      ) : tela === "plataforma" && plataforma ? (
+        <Plataforma minhaEmpresaId={empresa?.id} toast={toast} />
       ) : <>
       <section className="funnel" aria-label="Valor em aberto por etapa">
         <div className="funnel-bar">
@@ -579,7 +589,7 @@ export default function Crm({ sessao, perfil }) {
       </main>
       </>}
 
-      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta ? " open" : "")} onClick={fechar} />
+      <div className={"scrim" + (aberto || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta ? " open" : "")} onClick={fechar} />
 
       {rascunho && (
         <Painel
@@ -615,8 +625,9 @@ export default function Crm({ sessao, perfil }) {
         <Lixeira ehAdmin={ehAdmin} userId={userId} nomes={nomes} fechar={fechar} toast={toast}
           onRestaurado={(d) => { setNegocios((ns) => [d, ...ns]); setInteracoes((m) => { const c = { ...m }; delete c[d.id]; return c; }); }} />
       )}
-      {backupAberto && <Backup fechar={fechar} toast={toast} />}
-      {usuariosAberto && <Usuarios pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
+      {backupAberto && <Backup empresa={empresa} fechar={fechar} toast={toast} />}
+      {empresaAberta && empresa && <MinhaEmpresa empresa={empresa} toast={toast} recarregar={recarregarEmpresa} fechar={fechar} />}
+      {usuariosAberto && <Usuarios empresa={empresa} pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 
       <div className={"toast" + (toastTxt ? " show" : "")} role="status" aria-live="polite">{toastTxt}</div>
     </div>

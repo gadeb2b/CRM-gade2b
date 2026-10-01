@@ -1,9 +1,9 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "CRM Gade2B",
-  applicationName: "CRM Gade2B",
-  description: "CRM de vendas da Gade2B",
+  title: "CRM de vendas",
+  applicationName: "CRM de vendas",
+  description: "CRM de vendas",
 };
 
 export const viewport = {

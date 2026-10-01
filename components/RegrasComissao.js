@@ -149,7 +149,7 @@ export default function RegrasComissao({ pessoas, fornecedores, produtos, recarr
             <p className="muted">Quanto {pessoa.nome || "este vendedor"} recebe por unidade vendida de cada produto, com as regras acima. Vale para as próximas vendas.</p>
             <div className="planilha-wrap" style={{ flex: "none", maxHeight: 360 }}>
               <table className="planilha leitura">
-                <thead><tr><th>Produto</th><th>Fornecedor</th><th>Categoria</th><th className="num">Gade2B recebe</th><th>Regra aplicada</th><th className="num">Vendedor recebe</th></tr></thead>
+                <thead><tr><th>Produto</th><th>Fornecedor</th><th>Categoria</th><th className="num">Empresa recebe</th><th>Regra aplicada</th><th className="num">Vendedor recebe</th></tr></thead>
                 <tbody>
                   {produtos.filter((p) => p.ativo !== false).sort((a, b) => (nomeForn(a.fornecedor_id) + a.nome).localeCompare(nomeForn(b.fornecedor_id) + b.nome, "pt-BR", { numeric: true })).map((p) => {
                     const g = gadeRecebe(p);
@@ -192,7 +192,7 @@ function Padrao({ p, toast, recarregar }) {
     <div className="com-user">
       <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} aria-label="Comissão padrão" />
       <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo">
-        <option value="percentual">% do que a Gade2B recebe</option>
+        <option value="percentual">% do que a empresa recebe</option>
         <option value="fixo">R$ por produto vendido</option>
       </select>
       {mudou && <button className="btn small primary" disabled={salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>}

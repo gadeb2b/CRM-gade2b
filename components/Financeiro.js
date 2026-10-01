@@ -28,7 +28,7 @@ function situacaoRepasse(r) {
 }
 const ROTULO_REP = { aguardando: "Aguardando recebimento", liberado: "Liberado para pagar", pago: "Pago", cancelado: "Cancelado/estornado" };
 
-export default function Financeiro({ fornecedores, produtos, pessoas, recarregarPessoas, toast }) {
+export default function Financeiro({ empresaId, fornecedores, produtos, pessoas, recarregarPessoas, toast }) {
   const [aba, setAba] = useState("recebimentos");
   const [linhas, setLinhas] = useState(null);
 
@@ -69,7 +69,7 @@ export default function Financeiro({ fornecedores, produtos, pessoas, recarregar
         : aba === "recebimentos" ? <Recebimentos linhas={linhas} fornecedores={fornecedores} atualizar={atualizar} />
         : aba === "comissoes" ? <Comissoes linhas={linhas} atualizar={atualizar} />
         : aba === "regras" ? <RegrasComissao pessoas={pessoas} fornecedores={fornecedores} produtos={produtos} recarregarPessoas={recarregarPessoas} toast={toast} />
-        : <Configuracoes toast={toast} recarregar={carregar} />}
+        : <Configuracoes empresaId={empresaId} toast={toast} recarregar={carregar} />}
     </div>
   );
 }
@@ -255,7 +255,7 @@ function Comissoes({ linhas, atualizar }) {
   return (
     <>
       <p className="muted" style={{ margin: "0 0 12px" }}>
-        A comissão do vendedor só fica <b>liberada para pagar</b> depois que a Gade2B recebe do fornecedor. Selecione as linhas liberadas e marque como pagas quando fizer o repasse.
+        A comissão do vendedor só fica <b>liberada para pagar</b> depois que a empresa recebe do fornecedor. Selecione as linhas liberadas e marque como pagas quando fizer o repasse.
       </p>
       <div className="planilha-wrap" style={{ flex: "none", marginBottom: 14 }}>
         <table className="planilha leitura">
@@ -302,7 +302,7 @@ function Comissoes({ linhas, atualizar }) {
           <thead>
             <tr>
               <th className="chk"><input type="checkbox" checked={todosMarcados} onChange={() => setSel(todosMarcados ? new Set() : new Set(visiveis))} aria-label="Selecionar todos" /></th>
-              <th>Vendedor</th><th>Cliente</th><th>Produto</th><th>Parcela</th><th>Gade2B recebe</th><th>Regra</th><th>Comissão</th><th>Situação</th><th>Pago em</th><th>Valor pago</th>
+              <th>Vendedor</th><th>Cliente</th><th>Produto</th><th>Parcela</th><th>Empresa recebe</th><th>Regra</th><th>Comissão</th><th>Situação</th><th>Pago em</th><th>Valor pago</th>
             </tr>
           </thead>
           <tbody>
@@ -339,20 +339,20 @@ function Comissoes({ linhas, atualizar }) {
 }
 
 /* ---------------- Configurações financeiras ---------------- */
-function Configuracoes({ toast, recarregar }) {
+function Configuracoes({ empresaId, toast, recarregar }) {
   const [cfg, setCfg] = useState(null);
   const [gerando, setGerando] = useState(false);
 
   useEffect(() => {
-    supabase.from("configuracao_empresa").select("*").eq("id", 1).maybeSingle().then(({ data, error }) => {
+    supabase.from("configuracao_empresa").select("*").eq("empresa_id", empresaId).maybeSingle().then(({ data, error }) => {
       if (error) toast(error.message);
       setCfg(data || {});
     });
-  }, [toast]);
+  }, [toast, empresaId]);
 
   async function salvar(patch) {
     setCfg((c) => ({ ...c, ...patch }));
-    const { error } = await supabase.from("configuracao_empresa").update({ ...patch, atualizado_em: new Date().toISOString() }).eq("id", 1);
+    const { error } = await supabase.from("configuracao_empresa").update({ ...patch, atualizado_em: new Date().toISOString() }).eq("empresa_id", empresaId);
     if (error) toast("Não foi possível salvar: " + error.message);
   }
 
@@ -375,7 +375,7 @@ function Configuracoes({ toast, recarregar }) {
           <input type="number" min="0" step="0.01" defaultValue={cfg.vendedor_comissao_valor ?? 0}
             onBlur={(e) => salvar({ vendedor_comissao_valor: Number(e.target.value) || 0 })} aria-label="Comissão padrão" />
           <select value={cfg.vendedor_comissao_tipo || "percentual"} onChange={(e) => salvar({ vendedor_comissao_tipo: e.target.value })} aria-label="Tipo de comissão padrão">
-            <option value="percentual">% do que a Gade2B recebe</option>
+            <option value="percentual">% do que a empresa recebe</option>
             <option value="fixo">R$ por produto vendido</option>
           </select>
         </div>

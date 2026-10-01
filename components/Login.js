@@ -14,8 +14,9 @@ function traduzir(msg) {
   return "Não foi possível concluir. Detalhe: " + (msg || "erro desconhecido");
 }
 
-export default function Login() {
-  const [modo, setModo] = useState("entrar");
+export default function Login({ marca, convite }) {
+  const conviteOk = !!marca?.convite_valido;
+  const [modo, setModo] = useState(conviteOk ? "solicitar" : "entrar");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -45,10 +46,12 @@ export default function Login() {
     } else {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(), password: senha,
-        options: { data: { nome: nome.trim() }, emailRedirectTo: window.location.origin },
+        options: { data: { nome: nome.trim(), convite }, emailRedirectTo: window.location.origin },
       });
       if (error) setErro(traduzir(error.message));
-      else if (!data.session) setOk("Cadastro recebido. Se chegar um e-mail de confirmação, clique no link. Depois é só aguardar a aprovação do administrador.");
+      else if (!data.session) setOk(marca?.convite_admin
+        ? "Conta criada. Se chegar um e-mail de confirmação, clique no link e depois entre com seu e-mail e senha."
+        : "Cadastro recebido. Se chegar um e-mail de confirmação, clique no link. Depois é só aguardar a aprovação do administrador.");
     }
     setEnviando(false);
   }
@@ -56,12 +59,16 @@ export default function Login() {
   return (
     <div className="login">
       <form onSubmit={enviar}>
-        <img className="logo-login" src="/logo-gade2b.png" alt="Gade2B" />
+        {marca?.logo_url
+          ? <img className="logo-login custom" src={marca.logo_url} alt={marca.nome} />
+          : marca?.nome ? <p className="nome-login">{marca.nome}</p>
+          : <img className="logo-login" src="/logo-gade2b.png" alt="" />}
         <p className="sub">CRM de vendas</p>
+        {convite && !conviteOk && <p className="err">Este link de convite é inválido ou já foi usado. Peça um novo ao administrador.</p>}
         {modo === "recuperar" ? <p className="muted" style={{ margin: 0 }}>Informe seu e-mail para receber um link de nova senha.</p> : (
         <div className="tabs" role="tablist" style={{ padding: 0 }}>
           <button type="button" className="tab" role="tab" aria-selected={modo === "entrar"} onClick={() => trocar("entrar")}>Entrar</button>
-          <button type="button" className="tab" role="tab" aria-selected={modo === "solicitar"} onClick={() => trocar("solicitar")}>Solicitar acesso</button>
+          {conviteOk && <button type="button" className="tab" role="tab" aria-selected={modo === "solicitar"} onClick={() => trocar("solicitar")}>{marca?.convite_admin ? "Criar conta de administrador" : "Solicitar acesso"}</button>}
         </div>
         )}
         {modo === "solicitar" && (
@@ -93,7 +100,9 @@ export default function Login() {
         </button>
         {modo === "entrar" && <button type="button" className="btn ghost small" onClick={() => trocar("recuperar")}>Esqueci minha senha</button>}
         {modo === "recuperar" && <button type="button" className="btn ghost small" onClick={() => trocar("entrar")}>Voltar para o login</button>}
-        {modo === "solicitar" && <p className="muted" style={{ margin: 0 }}>Seu acesso só é liberado depois que o administrador aprovar a solicitação.</p>}
+        {modo === "solicitar" && !marca?.convite_admin && <p className="muted" style={{ margin: 0 }}>Você está pedindo acesso a <b>{marca?.nome}</b>. O acesso é liberado depois que o administrador aprovar.</p>}
+        {modo === "solicitar" && marca?.convite_admin && <p className="muted" style={{ margin: 0 }}>Você vai criar a conta de administrador principal de <b>{marca?.nome}</b>. Este link funciona uma única vez.</p>}
+        {modo === "entrar" && !conviteOk && <p className="muted" style={{ margin: 0, textAlign: "center" }}>Ainda não tem acesso? Peça o link de convite ao administrador da sua empresa.</p>}
       </form>
     </div>
   );

@@ -140,7 +140,7 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
                 <th style={{ minWidth: 100 }} title="Valor fixo em R$ ou percentual do preço">Valor</th>
                 <th style={{ minWidth: 80 }} title="Em quantas parcelas o fornecedor paga">Parcelas</th>
                 <th style={{ minWidth: 90 }} title="Dias depois da venda até a 1ª parcela (em branco = padrão)">Prazo (dias)</th>
-                <th style={{ minWidth: 120 }} title="Total que a Gade2B recebe por unidade vendida">Você recebe</th>
+                <th style={{ minWidth: 120 }} title="Total que a empresa recebe por unidade vendida">Você recebe</th>
                 <th>Ativo</th>
                 <th aria-label="Ações" />
               </tr>

@@ -66,7 +66,7 @@ export default function Config({ tipos, assinatura, cfg, fechar, podeEditar }) {
           <>
             <div className="field">
               <label htmlFor="c-ass">Como você se apresenta nas mensagens</label>
-              <input id="c-ass" placeholder="Ex.: Ana, da Gade2B" value={assinatura} onChange={(e) => cfg.setAssinatura(e.target.value)} />
+              <input id="c-ass" placeholder="Ex.: Ana, da Sua Empresa" value={assinatura} onChange={(e) => cfg.setAssinatura(e.target.value)} />
             </div>
             <p className="muted">Esse texto entra na variável <code>{"{meu_nome}"}</code> e é usado pela IA para assinar e-mails.</p>
           </>

@@ -7,7 +7,7 @@ import { IcX } from "./Icon";
 const tamanho = (b) => (!b ? "" : b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + " KB" : (b / 1024 / 1024).toFixed(1) + " MB");
 const quando = (s) => new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(".", "");
 
-export default function Backup({ fechar, toast }) {
+export default function Backup({ empresa, fechar, toast }) {
   const [arquivos, setArquivos] = useState(null);
   const [erroLista, setErroLista] = useState("");
   const [baixando, setBaixando] = useState(false);
@@ -16,7 +16,7 @@ export default function Backup({ fechar, toast }) {
   const fecharRef = useRef(null);
 
   const listar = useCallback(async () => {
-    const { data, error } = await supabase.storage.from("backups").list("", { limit: 200, sortBy: { column: "name", order: "desc" } });
+    const { data, error } = await supabase.storage.from("backups").list(empresa.id, { limit: 200, sortBy: { column: "name", order: "desc" } });
     if (error) { setErroLista(error.message); setArquivos([]); return; }
     setErroLista("");
     // Agrupa .xlsx e .json do mesmo backup
@@ -27,16 +27,16 @@ export default function Backup({ fechar, toast }) {
       g.arquivos[f.name.endsWith(".json") ? "json" : "xlsx"] = f;
     });
     setArquivos(Object.values(grupos).sort((a, b) => (a.base < b.base ? 1 : -1)));
-  }, []);
+  }, [empresa.id]);
 
   useEffect(() => { fecharRef.current?.focus(); listar(); }, [listar]);
 
   async function baixarAgora() {
     setBaixando(true);
     try {
-      const dados = await coletarDados(supabase);
+      const dados = await coletarDados(supabase, empresa.id);
       const { default: writeExcelFile } = await import("write-excel-file/browser");
-      await writeExcelFile(montarPlanilha(dados)).toFile(nomeBackup() + ".xlsx");
+      await writeExcelFile(montarPlanilha(dados)).toFile(nomeBackup(empresa.slug) + ".xlsx");
     } catch (e) {
       toast("Não foi possível gerar a planilha: " + e.message);
     }
@@ -56,7 +56,7 @@ export default function Backup({ fechar, toast }) {
   }
 
   async function baixar(f) {
-    const { data, error } = await supabase.storage.from("backups").createSignedUrl(f.name, 60, { download: f.name });
+    const { data, error } = await supabase.storage.from("backups").createSignedUrl(`${empresa.id}/${f.name}`, 60, { download: f.name });
     if (error) { toast("Não foi possível baixar: " + error.message); return; }
     window.location.href = data.signedUrl;
   }
