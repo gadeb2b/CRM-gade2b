@@ -178,7 +178,7 @@ function Recebimentos({ linhas, fornecedores, atualizar }) {
                     {r.data_estimada && r.status === "previsto" ? <span className="estimada">≈ {dataBr(r.data_prevista)}</span> : dataBr(r.data_prevista)}
                   </td>
                   <td className="txt">{r.negocio_nome}{r.cliente_empresa && r.cliente_empresa !== r.negocio_nome ? <span className="muted"> · {r.cliente_empresa}</span> : null}</td>
-                  <td className="txt">{r.produto_nome}{r.fornecedor_nome ? <span className="muted"> · {r.fornecedor_nome}</span> : null}</td>
+                  <td className="txt">{r.produto_nome}{r.fornecedor_nome ? <span className="muted"> · {r.fornecedor_nome}</span> : null}{r.tipo_cliente === "base" ? <span className="tag-bf">base</span> : null}</td>
                   <td className="txt num">{r.parcela}/{r.parcelas}</td>
                   <td className="txt num">{r.quantidade}</td>
                   <td className="txt num">{reais(r.valor_previsto)}</td>

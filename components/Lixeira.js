@@ -26,11 +26,11 @@ export default function Lixeira({ ehAdmin, userId, nomes, onRestaurado, fechar, 
     setOcupado(d.id);
     const { data, error } = await supabase.from("negocios").update({ excluido_em: null, excluido_por: null }).eq("id", d.id).select().single();
     if (error) { setOcupado(null); toast("Não foi possível restaurar: " + error.message); return; }
-    const { data: np } = await supabase.from("negocio_produtos").select("produto_id,quantidade").eq("negocio_id", d.id);
+    const { data: np } = await supabase.from("negocio_produtos").select("produto_id,quantidade,tipo_cliente").eq("negocio_id", d.id);
     await supabase.from("interacoes").insert({ negocio_id: d.id, texto: "Restaurado da lixeira", sistema: true });
     setItens((l) => l.filter((x) => x.id !== d.id));
     setOcupado(null);
-    onRestaurado({ ...data, valor: Number(data.valor) || 0, produtos: (np || []).map((r) => r.produto_id), qtd: Object.fromEntries((np || []).map((r) => [r.produto_id, r.quantidade || 1])) });
+    onRestaurado({ ...data, valor: Number(data.valor) || 0, produtos: (np || []).map((r) => r.produto_id), qtd: Object.fromEntries((np || []).map((r) => [r.produto_id, r.quantidade || 1])), tc: Object.fromEntries((np || []).map((r) => [r.produto_id, r.tipo_cliente || "fresh"])) });
     toast(`${d.nome || d.empresa || "Negócio"} restaurado para ${nomeEtapa(d.etapa)}`);
   }
 

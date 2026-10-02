@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 25 (01/10/2026).
+Última atualização: versão 26 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -125,6 +125,7 @@ vercel.json       Agendamento do backup diário (06:00 UTC = 03:00 de Brasília)
 | `11-etapas-convites-logo.sql` | Etapas por empresa, cadastro só por convite e permissão do logo |
 | `12-contatos-telefones.sql` | Contatos do negócio, vários telefones, número principal e operadora |
 | `13-conclusao-e-prazo-quinzenal.sql` | Data de conclusão do pedido e regra de prazo quinzenal por produto |
+| `14-base-fresh.sql` | Produto do negócio como Base ou Fresh e comissão diferente para base |
 
 Todos os scripts já foram executados. Um script novo deve ser rodado **antes** de subir a versão do código que depende dele.
 
@@ -178,6 +179,7 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 ### Financeiro
 
 - Comissão do produto: valor fixo (R$) ou % do preço; total dividido em N parcelas.
+- **Base ou Fresh:** cada produto do negócio é marcado como Fresh (cliente novo) ou Base (cliente que já é do fornecedor); dá para misturar no mesmo negócio. O produto tem "Valor (fresh)" e "Valor (base)"; base em branco = igual ao fresh. Forma de cálculo, parcelas e prazo são os mesmos. Ao adicionar um produto, o sistema sugere Base quando a operadora do número principal é o fornecedor do produto. Trocar base/fresh num negócio ganho refaz os recebimentos daquele produto. A comissão do vendedor não muda.
 - Regra de prazo de cada produto: **Em dias** (X dias depois da data base; em branco = padrão da empresa) ou **Quinzenal** (concluído do dia 1 ao 15 → próximo dia 30; do 16 ao fim do mês → próximo dia 15; meses curtos usam o último dia; parcelas seguintes no mesmo dia dos meses seguintes). Os dias são configuráveis em Financeiro → Configurações. No Catálogo, dá para aplicar a regra a todos os produtos de um fornecedor.
 - Data base dos recebimentos: a **data de conclusão** do pedido (instalação/ativação), informada no negócio em Ganho e editável. Sem ela, a data fica **estimada** a partir do dia em que a venda foi fechada (aparece com "≈" no Financeiro). Ao informar ou mudar a conclusão, os recebimentos ainda não recebidos são recalculados.
 - Quando um negócio vai para a etapa de **venda ganha**, o banco cria os recebimentos previstos, com valores **congelados** naquele momento.
@@ -188,6 +190,7 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 
 ### Mensagens
 
+- Mensagens por etapa: cada mensagem pode valer para várias etapas e cada etapa pode ter várias. A ordem definida em Menu → Mensagens é a sequência: no negócio, a 1ª da etapa é sugerida e, depois de cada envio, o sistema passa para a próxima.
 - Variáveis: `{primeiro_nome}`, `{nome}`, `{empresa}`, `{segmento}`, `{cnae}`, `{produto}`, `{fornecedor}`, `{oferta}`, `{preco}`, `{meu_nome}`.
 - `{preco}` já inclui "R$", centavos e "/mês" nos produtos mensais (o sistema evita "R$ R$").
 - Mensagem específica do produto substitui o modelo do tipo quando o negócio tem só aquele produto.
@@ -333,3 +336,4 @@ Do lado do negócio:
 | v23 | Correção: cards não encolhem mais; colunas cheias ganham barra de rolagem |
 | v24 | Importação de leads por planilha; botões de novo lead e importar em cada coluna; menu com rolagem |
 | v25 | Data de conclusão do pedido (editável) e regra de prazo quinzenal por produto |
+| v26 | Base/Fresh por produto do negócio com comissão própria; mensagens em sequência por etapa |

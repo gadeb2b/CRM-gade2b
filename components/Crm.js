@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ETAPAS, ABERTAS, TIPOS_PADRAO, COLUNAS_NEGOCIO, nomeEtapa, definirEtapas } from "../lib/constantes";
 import { brl, brlExato, hoje, diff, fmtData } from "../lib/util";
-import { modeloPara, prodsDe, statusAcao } from "../lib/mensagens";
+import { modeloPara, prodsDe, statusAcao, ordenarTipos } from "../lib/mensagens";
 import Painel from "./Painel";
 import Config from "./Config";
 import Usuarios from "./Usuarios";
@@ -123,7 +123,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     {
       const [n, np, p, t, m, c, fo, et, ct, tl] = await Promise.all([
         buscarTodos((de, ate) => supabase.from("negocios").select("*").is("excluido_em", null).order("criado_em", { ascending: false }).range(de, ate)),
-        buscarTodos((de, ate) => supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade").range(de, ate)),
+        buscarTodos((de, ate) => supabase.from("negocio_produtos").select("negocio_id,produto_id,quantidade,tipo_cliente").range(de, ate)),
         supabase.from("produtos").select("*").order("criado_em"),
         supabase.from("tipos_mensagem").select("*").order("ordem"),
         supabase.from("modelos_produto").select("*"),
@@ -145,12 +145,12 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       if (!c.data) await supabase.from("configuracoes").insert({ assinatura: "" });
 
       const mapa = {};
-      const qtds = {};
-      np.data.forEach((r) => { (mapa[r.negocio_id] ||= []).push(r.produto_id); (qtds[r.negocio_id] ||= {})[r.produto_id] = r.quantidade || 1; });
+      const qtds = {}, tcs = {};
+      np.data.forEach((r) => { (mapa[r.negocio_id] ||= []).push(r.produto_id); (qtds[r.negocio_id] ||= {})[r.produto_id] = r.quantidade || 1; (tcs[r.negocio_id] ||= {})[r.produto_id] = r.tipo_cliente || "fresh"; });
       const mm = {};
       m.data.forEach((r) => { mm[r.produto_id + ":" + r.tipo_id] = r.modelo; });
 
-      setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [], qtd: qtds[d.id] || {} })));
+      setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [], qtd: qtds[d.id] || {}, tc: tcs[d.id] || {} })));
       setProdutos(p.data.map((x) => ({ ...x, preco: Number(x.preco) || 0 })));
       setFornecedores(fo.data);
       if (et.data?.length) setEtapas(et.data);
@@ -216,13 +216,32 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     const tem = d.produtos.includes(produtoId);
     const lista = tem ? d.produtos.filter((x) => x !== produtoId) : [...d.produtos, produtoId];
     const qtd = { ...(d.qtd || {}) };
-    if (tem) delete qtd[produtoId]; else qtd[produtoId] = 1;
-    atualizarNegocio(negocioId, { produtos: lista, qtd, valor: valorDe(lista, qtd, produtos) });
+    const tc = { ...(d.tc || {}) };
+    if (tem) { delete qtd[produtoId]; delete tc[produtoId]; } else { qtd[produtoId] = 1; tc[produtoId] = sugerirTipo(contatosMapRef.current[negocioId], produtoId); }
+    atualizarNegocio(negocioId, { produtos: lista, qtd, tc, valor: valorDe(lista, qtd, produtos) });
     const { error } = tem
       ? await supabase.from("negocio_produtos").delete().eq("negocio_id", negocioId).eq("produto_id", produtoId)
-      : await supabase.from("negocio_produtos").insert({ negocio_id: negocioId, produto_id: produtoId, quantidade: 1 });
+      : await supabase.from("negocio_produtos").insert({ negocio_id: negocioId, produto_id: produtoId, quantidade: 1, tipo_cliente: tc[produtoId] });
     if (error) toast("Não foi possível salvar o produto: " + error.message);
   }, [negocios, produtos, atualizarNegocio, toast]);
+
+  // Base quando o número principal já é da operadora que fornece o produto
+  const sugerirTipo = (lista, produtoId) => {
+    const p = produtos.find((x) => x.id === produtoId);
+    const forn = fornecedores.find((f) => f.id === p?.fornecedor_id)?.nome || "";
+    let op = "";
+    for (const c of lista || []) { const t = (c.telefones || []).find((x) => x.principal); if (t) { op = t.operadora || ""; break; } }
+    const norm = (x) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    return op && forn && norm(forn).includes(norm(op)) ? "base" : "fresh";
+  };
+  const setTipoCliente = useCallback(async (negocioId, produtoId, tipo) => {
+    const d = negocios.find((x) => x.id === negocioId);
+    if (!d) return;
+    atualizarNegocio(negocioId, { tc: { ...(d.tc || {}), [produtoId]: tipo } });
+    const { error } = await supabase.from("negocio_produtos").update({ tipo_cliente: tipo }).eq("negocio_id", negocioId).eq("produto_id", produtoId);
+    if (error) toast("Não foi possível salvar: " + error.message);
+    else if (d.etapa === "ganho") toast("Recebimentos deste produto recalculados para " + (tipo === "base" ? "Base" : "Fresh"));
+  }, [negocios, atualizarNegocio, toast]);
 
   const qtdTimers = useRef({});
   const setQuantidade = useCallback((negocioId, produtoId, q) => {
@@ -292,10 +311,13 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       const tem = r.produtos.includes(produtoId);
       const lista = tem ? r.produtos.filter((x) => x !== produtoId) : [...r.produtos, produtoId];
       const qtd = { ...(r.qtd || {}) };
-      if (tem) delete qtd[produtoId]; else qtd[produtoId] = 1;
-      return { ...r, produtos: lista, qtd, valor: valorDe(lista, qtd, produtos) };
+      const tc = { ...(r.tc || {}) };
+      if (tem) { delete qtd[produtoId]; delete tc[produtoId]; } else { qtd[produtoId] = 1; tc[produtoId] = sugerirTipo(r.contatos, produtoId); }
+      return { ...r, produtos: lista, qtd, tc, valor: valorDe(lista, qtd, produtos) };
     });
-  }, [produtos]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produtos, fornecedores]);
+  const setTipoRascunho = useCallback((produtoId, tipo) => setRascunho((r) => (r ? { ...r, tc: { ...(r.tc || {}), [produtoId]: tipo } } : r)), []);
   const setQuantidadeRascunho = useCallback((produtoId, q) => {
     setRascunho((r) => {
       if (!r) return r;
@@ -313,12 +335,12 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     const { data, error } = await supabase.from("negocios").insert(linha).select().single();
     if (error) { setCriando(false); toast("Não foi possível criar: " + error.message); return; }
     if (rascunho.produtos.length) {
-      const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid, quantidade: (rascunho.qtd || {})[pid] || 1 })));
+      const r = await supabase.from("negocio_produtos").insert(rascunho.produtos.map((pid) => ({ negocio_id: data.id, produto_id: pid, quantidade: (rascunho.qtd || {})[pid] || 1, tipo_cliente: (rascunho.tc || {})[pid] || "fresh" })));
       if (r.error) toast("Negócio criado, mas os produtos não foram salvos: " + r.error.message);
     }
     await gravarContatosRascunho(data.id, rascunho.contatos);
     const { data: nota } = await supabase.from("interacoes").insert({ negocio_id: data.id, texto: "Lead criado", sistema: true }).select().single();
-    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos, qtd: rascunho.qtd || {} }, ...ns]);
+    setNegocios((ns) => [{ ...data, valor: Number(data.valor) || 0, produtos: rascunho.produtos, qtd: rascunho.qtd || {}, tc: rascunho.tc || {} }, ...ns]);
     setInteracoes((m) => ({ ...m, [data.id]: nota ? [nota] : [] }));
     setRascunho(null);
     setCriando(false);
@@ -404,7 +426,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     },
     addTipo: async () => {
       const { data, error } = await supabase.from("tipos_mensagem")
-        .insert({ nome: "Novo tipo", assunto: "{produto} para {empresa}", modelo: "Oi {primeiro_nome}, ", ordem: tipos.length })
+        .insert({ nome: "Novo tipo", assunto: "{produto} para {empresa}", modelo: "Oi {primeiro_nome}, ", ordem: Math.max(-1, ...tipos.map((t) => t.ordem ?? 0)) + 1 })
         .select().single();
       if (error) { toast(error.message); return null; }
       setTipos((ts) => [...ts, data]);
@@ -414,16 +436,25 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       setTipos((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
       salvarDepois("tipos_mensagem", id, patch);
     },
+    // Uma mensagem pode valer para várias etapas, e cada etapa pode ter várias mensagens
     toggleEtapaTipo: (id, etapa) => {
       const alvo = tipos.find((t) => t.id === id);
-      const tinha = alvo.etapas.includes(etapa);
-      const novos = tipos.map((t) => {
-        let e = t.etapas.filter((x) => x !== etapa);
-        if (t.id === id && !tinha) e = [...e, etapa];
-        return { ...t, etapas: e };
-      });
-      novos.forEach((t, i) => { if (t.etapas.join() !== tipos[i].etapas.join()) salvarDepois("tipos_mensagem", t.id, { etapas: t.etapas }); });
-      setTipos(novos);
+      const etapas = alvo.etapas.includes(etapa) ? alvo.etapas.filter((x) => x !== etapa) : [...alvo.etapas, etapa];
+      setTipos((ts) => ts.map((t) => (t.id === id ? { ...t, etapas } : t)));
+      salvarDepois("tipos_mensagem", id, { etapas });
+    },
+    // Sobe ou desce um tipo na sequência (dentro da lista visível, ex.: só os de uma etapa)
+    moverTipo: (id, dir, visiveis) => {
+      const lista = ordenarTipos(tipos);
+      const vis = visiveis.map((v) => v.id);
+      const i = vis.indexOf(id), j = i + dir;
+      if (i < 0 || j < 0 || j >= vis.length) return;
+      const a = lista.findIndex((t) => t.id === vis[i]), b = lista.findIndex((t) => t.id === vis[j]);
+      const nova = [...lista];
+      [nova[a], nova[b]] = [nova[b], nova[a]];
+      const reordenada = nova.map((t, k) => ({ ...t, ordem: k }));
+      reordenada.forEach((t) => { const antes = lista.find((x) => x.id === t.id); if (antes.ordem !== t.ordem) salvarDepois("tipos_mensagem", t.id, { ordem: t.ordem }); });
+      setTipos(reordenada);
     },
     delTipo: async (id) => {
       if (tipos.length <= 1) { toast("Mantenha pelo menos um tipo de mensagem"); return; }
@@ -848,6 +879,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
           mover={(etapa) => atualizarRascunho({ etapa, tipo_msg_id: null })}
           toggleProduto={toggleProdutoRascunho}
           setQuantidade={setQuantidadeRascunho}
+          setTipoCliente={setTipoRascunho}
           registrar={() => {}}
           excluir={fechar}
           concluir={criarRascunho}
@@ -863,6 +895,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
           mover={(etapa) => mover(aberto.id, etapa)}
           toggleProduto={(pid) => toggleProduto(aberto.id, pid)}
           setQuantidade={(pid, q) => setQuantidade(aberto.id, pid, q)}
+          setTipoCliente={(pid, t) => setTipoCliente(aberto.id, pid, t)}
           registrar={(t, s) => registrar(aberto.id, t, s)}
           excluir={() => excluirNegocio(aberto.id)}
           fechar={fechar} toast={toast}

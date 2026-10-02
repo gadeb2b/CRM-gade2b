@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { ETAPAS, CNAES } from "../lib/constantes";
+import { ETAPAS, CNAES, nomeEtapa } from "../lib/constantes";
 import { fmtData, soDigitos, cnpjValido, formatarCnpj, waLinkPara, mailLinkPara } from "../lib/util";
 import ContatosEditor from "./ContatosEditor";
-import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA } from "../lib/mensagens";
+import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA, sequenciaDaEtapa, ordenarTipos } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
-export default function Painel({ novo = false, criando = false, concluir, d, contatos = [], opsContatos, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, registrar, excluir, fechar, toast }) {
+export default function Painel({ novo = false, criando = false, concluir, d, contatos = [], opsContatos, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, setTipoCliente, registrar, excluir, fechar, toast }) {
   const [aviso, setAviso] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [nota, setNota] = useState("");
@@ -158,6 +158,20 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
   const telEscolhido = destinosTel.find((x) => x.id === destTel) || destinosTel[0] || null;
   const mailEscolhido = destinosMail.find((x) => x.id === destMail) || destinosMail[0] || null;
 
+  // Sequência de mensagens da etapa atual (na ordem definida em Mensagens)
+  const sequencia = sequenciaDaEtapa(d.etapa, ctx.tipos);
+  const outrosTipos = ordenarTipos(ctx.tipos).filter((x) => !sequencia.includes(x));
+  const posicao = t ? sequencia.findIndex((x) => x.id === t.id) : -1;
+  // Depois de enviar, já deixa pronta a próxima mensagem da sequência
+  function avancarSequencia() {
+    const prox = posicao >= 0 ? sequencia[posicao + 1] : null;
+    if (!prox) return;
+    setTimeout(() => {
+      atualizar({ tipo_msg_id: prox.id, msg_origem: "modelo" });
+      toast(`Envio registrado. Próxima da sequência: ${posicao + 2}. ${prox.nome}`);
+    }, 400);
+  }
+
   const descEnvio = t ? t.nome + (ps.length ? " – " + juntar(ps.map((p) => p.nome)) : "") : "";
   const campo = (k, extra = {}) => ({ value: d[k] ?? "", onChange: (e) => atualizar({ [k]: extra.num ? Number(e.target.value) || 0 : e.target.value }) });
 
@@ -214,7 +228,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
         <ContatosEditor contatos={contatos} ops={opsContatos} toast={toast} />
 
         <h3>Produtos oferecidos</h3>
-        <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} setQtd={setQuantidade} />
+        <SeletorProdutos d={d} produtos={ctx.produtos} fornecedores={ctx.fornecedores || []} toggle={toggleProduto} setQtd={setQuantidade} setTc={setTipoCliente} />
         <div className="grid" style={{ marginTop: 12 }}>
           <div className="field"><label htmlFor="f-val">Valor do negócio (R$)</label><input id="f-val" type="number" min="0" step="0.01" {...campo("valor", { num: true })} /></div>
           <div className="field"><label htmlFor="f-canal">Canal principal</label>
@@ -227,7 +241,16 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
           <div className="comp-row">
             <div className="field"><label htmlFor="m-tipo">Tipo de mensagem</label>
               <select id="m-tipo" value={t?.id || ""} onChange={(e) => { setAviso(null); atualizar({ tipo_msg_id: e.target.value, msg_origem: "modelo" }); }}>
-                {ctx.tipos.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                {sequencia.length > 0 && (
+                  <optgroup label={"Sequência de " + nomeEtapa(d.etapa)}>
+                    {sequencia.map((x, i) => <option key={x.id} value={x.id}>{i + 1}. {x.nome}</option>)}
+                  </optgroup>
+                )}
+                {outrosTipos.length > 0 && (
+                  <optgroup label={sequencia.length ? "Outras mensagens" : "Mensagens"}>
+                    {outrosTipos.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
             <button className="btn small" onClick={usarModelo}>Usar modelo</button>
@@ -262,11 +285,11 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
           {novo && <p className="muted" style={{ margin: "0 0 10px" }}>Clique em Concluir para salvar o negócio antes de enviar a mensagem.</p>}
           <div className="send">
             <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !telEscolhido} href={!novo && telEscolhido ? waLinkPara(telEscolhido.numero, d.msg_rascunho) : undefined}
-              onClick={() => { if (!novo && telEscolhido) { registrar(`WhatsApp enviado para ${telEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); } }}>
+              onClick={() => { if (!novo && telEscolhido) { registrar(`WhatsApp enviado para ${telEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); avancarSequencia(); } }}>
               <IcChat /> Abrir WhatsApp
             </a>
             <a className="btn mail" aria-disabled={novo || !mailEscolhido} href={!novo && mailEscolhido ? mailLinkPara(mailEscolhido.email, d.assunto_rascunho, d.msg_rascunho) : undefined}
-              onClick={() => { if (!novo && mailEscolhido) { registrar(`E-mail enviado para ${mailEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); } }}>
+              onClick={() => { if (!novo && mailEscolhido) { registrar(`E-mail enviado para ${mailEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); avancarSequencia(); } }}>
               <IcMail /> Abrir e-mail
             </a>
           </div>
@@ -322,7 +345,7 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
 }
 
 // Escolha de produtos com busca, agrupada por fornecedor (pensada para catálogos grandes)
-function SeletorProdutos({ d, produtos, fornecedores, toggle, setQtd }) {
+function SeletorProdutos({ d, produtos, fornecedores, toggle, setQtd, setTc }) {
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState(false);
   const fechar = useRef(null);
@@ -352,6 +375,12 @@ function SeletorProdutos({ d, produtos, fornecedores, toggle, setQtd }) {
                 value={(d.qtd || {})[p.id] || 1} onChange={(e) => setQtd(p.id, e.target.value)} />
               <span>×</span>
               {p.nome} <span className="muted">{precoTxt(p)}</span>
+              <span className="bf" role="group" aria-label={"Cliente novo ou da base em " + p.nome}>
+                {[["fresh", "Fresh"], ["base", "Base"]].map(([v, n]) => (
+                  <button key={v} type="button" aria-pressed={((d.tc || {})[p.id] || "fresh") === v} onClick={() => setTc && setTc(p.id, v)}
+                    title={v === "fresh" ? "Cliente novo" : "Cliente que já é da base do fornecedor"}>{n}</button>
+                ))}
+              </span>
               <button type="button" onClick={() => toggle(p.id)} aria-label={"Remover " + p.nome}>×</button>
             </span>
           ))}

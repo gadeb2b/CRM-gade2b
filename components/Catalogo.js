@@ -30,16 +30,20 @@ function lerColagem(texto) {
       comissao_valor: lerPreco((c[6] || "").replace("%", "")),
       comissao_parcelas: Math.max(1, Math.min(36, parseInt(c[7], 10) || 1)),
       prazo_tipo: /quinz/i.test(c[8] || "") ? "quinzenal" : "dias",
+      comissao_valor_base: c[9] !== undefined && String(c[9]).trim() !== "" ? lerPreco(String(c[9]).replace("%", "")) : null,
       comissao_prazo_dias: c[8] !== undefined && c[8] !== "" && !isNaN(parseInt(c[8], 10)) ? parseInt(c[8], 10) : null,
     }));
 }
 
 const reais = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 function comissaoTxt(p) {
-  const total = p.comissao_tipo === "percentual" ? (+p.preco || 0) * (+p.comissao_valor || 0) / 100 : +p.comissao_valor || 0;
-  if (!total) return "—";
+  const calc = (v) => (p.comissao_tipo === "percentual" ? (+p.preco || 0) * (+v || 0) / 100 : +v || 0);
+  const fresh = calc(p.comissao_valor);
+  const temBase = p.comissao_valor_base !== null && p.comissao_valor_base !== undefined && p.comissao_valor_base !== "";
+  if (!fresh && !temBase) return "—";
   const n = p.comissao_parcelas || 1;
-  return n > 1 ? `${reais(total)} (${n}× ${reais(total / n)})` : reais(total);
+  const fmt = (t) => (n > 1 ? `${reais(t)} (${n}× ${reais(t / n)})` : reais(t));
+  return temBase ? `Fresh ${fmt(fresh)} · Base ${fmt(calc(p.comissao_valor_base))}` : fmt(fresh);
 }
 
 export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, voltar }) {
@@ -153,7 +157,8 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
                 <th style={{ minWidth: 280 }}>Oferta (o que o cliente recebe)</th>
                 <th style={{ minWidth: 200 }}>Segmentos ideais</th>
                 <th style={{ minWidth: 90 }} title="Como a comissão é calculada">Comissão</th>
-                <th style={{ minWidth: 100 }} title="Valor fixo em R$ ou percentual do preço">Valor</th>
+                <th style={{ minWidth: 100 }} title="Comissão para cliente novo (fresh): R$ ou % do preço">Valor (fresh)</th>
+                <th style={{ minWidth: 100 }} title="Comissão para cliente da base. Em branco = igual ao fresh">Valor (base)</th>
                 <th style={{ minWidth: 80 }} title="Em quantas parcelas o fornecedor paga">Parcelas</th>
                 <th style={{ minWidth: 120 }} title="Dias depois da conclusão, ou quinzenal (1–15 → dia 30; 16–31 → dia 15)">Regra de prazo</th>
                 <th style={{ minWidth: 90 }} title="Dias depois da conclusão até a 1ª parcela (em branco = padrão)">Prazo (dias)</th>
@@ -189,6 +194,7 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
                     </select>
                   </td>
                   <td><input className="cel num" type="number" min="0" step="0.01" value={p.comissao_valor ?? 0} onChange={(e) => cfg.updProduto(p.id, { comissao_valor: Number(e.target.value) || 0 })} /></td>
+                  <td><input className="cel num" type="number" min="0" step="0.01" placeholder="igual" value={p.comissao_valor_base ?? ""} onChange={(e) => cfg.updProduto(p.id, { comissao_valor_base: e.target.value === "" ? null : Number(e.target.value) || 0 })} /></td>
                   <td><input className="cel num" type="number" min="1" max="36" step="1" value={p.comissao_parcelas ?? 1} onChange={(e) => cfg.updProduto(p.id, { comissao_parcelas: Math.max(1, Math.min(36, parseInt(e.target.value, 10) || 1)) })} /></td>
                   <td>
                     <select className="cel" value={p.prazo_tipo || "dias"} onChange={(e) => cfg.updProduto(p.id, { prazo_tipo: e.target.value })}>
@@ -250,7 +256,7 @@ function Colagem({ fornecedores, fornPadrao, cfg, fechar }) {
           </p>
           <div className="vars">
             <code>Nome</code> <code>Preço</code> <code>Cobrança (único ou mensal)</code> <code>Categoria</code> <code>Oferta</code> <code>Segmentos</code>
-            <code>Comissão (R$ ou %)</code> <code>Parcelas</code> <code>Prazo (dias ou “quinzenal”)</code>
+            <code>Comissão fresh (R$ ou %)</code> <code>Parcelas</code> <code>Prazo (dias ou “quinzenal”)</code> <code>Comissão base</code>
             <br />Na comissão, escreva só o número para valor fixo (ex.: 120) ou com % para percentual do preço (ex.: 100%).
           </div>
           <div className="field" style={{ marginBottom: 12 }}>
