@@ -118,6 +118,7 @@ function Comissao({ p, toast, recarregar }) {
       <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo de comissão">
         <option value="percentual">% do recebido</option>
         <option value="fixo">R$ por produto</option>
+        <option value="preco">% do preço</option>
       </select>
       {mudou && <button className="btn small primary" disabled={salvando} onClick={salvar}>{salvando ? "…" : "Salvar"}</button>}
     </div>

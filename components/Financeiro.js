@@ -321,7 +321,7 @@ function Comissoes({ linhas, atualizar }) {
                   <td className="txt">{r.produto_nome}{r.quantidade > 1 ? ` (${r.quantidade}×)` : ""}</td>
                   <td className="txt num">{r.parcela}/{r.parcelas}</td>
                   <td className="txt num">{reais(r.status === "recebido" ? r.valor_recebido : r.valor_previsto)}</td>
-                  <td className="txt">{r.repasse_tipo === "percentual" ? `${Number(r.repasse_base).toLocaleString("pt-BR")}%` : `${reais(r.repasse_base)} por produto`}</td>
+                  <td className="txt">{r.repasse_tipo === "percentual" ? `${Number(r.repasse_base).toLocaleString("pt-BR")}% do recebido` : r.repasse_tipo === "preco" ? `${Number(r.repasse_base).toLocaleString("pt-BR")}% do preço` : `${reais(r.repasse_base)} por produto`}</td>
                   <td className="txt num destaque">{reais(r.repasse_valor)}</td>
                   <td className="txt"><span className={"tag-sit " + s}>{ROTULO_REP[s]}</span></td>
                   <td className="txt">{dataBr(r.repasse_pago_em)}</td>
@@ -381,6 +381,7 @@ function Configuracoes({ empresaId, toast, recarregar }) {
           <select value={cfg.vendedor_comissao_tipo || "percentual"} onChange={(e) => salvar({ vendedor_comissao_tipo: e.target.value })} aria-label="Tipo de comissão padrão">
             <option value="percentual">% do que a empresa recebe</option>
             <option value="fixo">R$ por produto vendido</option>
+            <option value="preco">% do preço do produto</option>
           </select>
         </div>
       </section>

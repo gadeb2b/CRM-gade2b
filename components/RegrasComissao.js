@@ -18,7 +18,7 @@ function regraPara(produto, regras, pessoa) {
   return { tipo: pessoa?.comissao_tipo || "percentual", valor: Number(pessoa?.comissao_valor) || 0, origem: null };
 }
 const gadeRecebe = (p) => (p.comissao_tipo === "percentual" ? (+p.preco || 0) * (+p.comissao_valor || 0) / 100 : +p.comissao_valor || 0);
-const textoRegra = (t, v) => (t === "fixo" ? `${reais(v)} por produto` : `${Number(v).toLocaleString("pt-BR")}% do recebido`);
+const textoRegra = (t, v) => (t === "fixo" ? `${reais(v)} por produto` : t === "preco" ? `${Number(v).toLocaleString("pt-BR")}% do preço` : `${Number(v).toLocaleString("pt-BR")}% do recebido`);
 
 export default function RegrasComissao({ pessoas, fornecedores, produtos, recarregarPessoas, toast }) {
   const vendedores = pessoas.filter((p) => p.status === "ativo");
@@ -108,7 +108,7 @@ export default function RegrasComissao({ pessoas, fornecedores, produtos, recarr
               </select>
               <button className="btn small primary" onClick={novaRegra}>+ Regra</button>
             </div>
-            <p className="muted">Prioridade: fornecedor + categoria → só fornecedor → só categoria → padrão. Deixe a categoria em branco para valer em todo o fornecedor.</p>
+            <p className="muted">Prioridade: fornecedor + categoria → só fornecedor → só categoria → padrão. Deixe a categoria em branco para valer em todo o fornecedor. Tipos: % do que a empresa recebe, R$ fixo por produto ou % do preço do produto (preço do catálogo × quantidade).</p>
             {regras === null ? <p className="muted">Carregando…</p> : !minhas.length ? <p className="muted">Nenhuma regra. Todas as vendas usam a comissão padrão.</p> : (
               <div className="planilha-wrap" style={{ flex: "none" }}>
                 <table className="planilha">
@@ -132,6 +132,7 @@ export default function RegrasComissao({ pessoas, fornecedores, produtos, recarr
                           <select className="cel" value={r.tipo} onChange={(e) => salvarRegra(r.id, { tipo: e.target.value })}>
                             <option value="percentual">% do recebido</option>
                             <option value="fixo">R$ por produto</option>
+                            <option value="preco">% do preço</option>
                           </select>
                         </td>
                         <td className="acoes"><button className="btn ghost small danger" onClick={() => apagarRegra(r.id)}>Excluir</button></td>
@@ -149,16 +150,17 @@ export default function RegrasComissao({ pessoas, fornecedores, produtos, recarr
             <p className="muted">Quanto {pessoa.nome || "este vendedor"} recebe por unidade vendida de cada produto, com as regras acima. Vale para as próximas vendas.</p>
             <div className="planilha-wrap" style={{ flex: "none", maxHeight: 360 }}>
               <table className="planilha leitura">
-                <thead><tr><th>Produto</th><th>Fornecedor</th><th>Categoria</th><th className="num">Empresa recebe</th><th>Regra aplicada</th><th className="num">Vendedor recebe</th></tr></thead>
+                <thead><tr><th>Produto</th><th>Fornecedor</th><th>Categoria</th><th className="num">Preço</th><th className="num">Empresa recebe</th><th>Regra aplicada</th><th className="num">Vendedor recebe</th></tr></thead>
                 <tbody>
                   {produtos.filter((p) => p.ativo !== false).sort((a, b) => (nomeForn(a.fornecedor_id) + a.nome).localeCompare(nomeForn(b.fornecedor_id) + b.nome, "pt-BR", { numeric: true })).map((p) => {
                     const g = gadeRecebe(p);
                     const r = regraPara(p, minhas, pessoa);
-                    const v = r.tipo === "fixo" ? r.valor : g * r.valor / 100;
+                    const v = r.tipo === "fixo" ? r.valor : r.tipo === "preco" ? (+p.preco || 0) * r.valor / 100 : g * r.valor / 100;
                     const origem = r.origem ? [r.origem.fornecedor_id ? nomeForn(r.origem.fornecedor_id) : "Qualquer fornecedor", r.origem.categoria].filter(Boolean).join(" + ") : "Padrão";
                     return (
                       <tr key={p.id}>
                         <td>{p.nome}</td><td>{nomeForn(p.fornecedor_id) || "—"}</td><td>{p.categoria || "—"}</td>
+                        <td className="num">{reais(p.preco)}</td>
                         <td className="num">{g ? reais(g) : "—"}</td>
                         <td>{origem}: {textoRegra(r.tipo, r.valor)}</td>
                         <td className="num destaque">{reais(v)}</td>
@@ -194,6 +196,7 @@ function Padrao({ p, toast, recarregar }) {
       <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo">
         <option value="percentual">% do que a empresa recebe</option>
         <option value="fixo">R$ por produto vendido</option>
+        <option value="preco">% do preço do produto</option>
       </select>
       {mudou && <button className="btn small primary" disabled={salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>}
     </div>
