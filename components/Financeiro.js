@@ -55,6 +55,15 @@ export default function Financeiro({ empresaId, fornecedores, produtos, pessoas,
     return true;
   }, [toast]);
 
+  // Apaga lançamentos feitos por engano (some também a comissão do vendedor ligada a eles)
+  const excluir = useCallback(async (ids) => {
+    const { error } = await supabase.from("recebimentos").delete().in("id", ids);
+    if (error) { toast("Não foi possível excluir: " + error.message); return false; }
+    setLinhas((ls) => ls.filter((r) => !ids.includes(r.id)));
+    toast(ids.length > 1 ? `${ids.length} lançamentos excluídos` : "Lançamento excluído");
+    return true;
+  }, [toast]);
+
   return (
     <div className="fin">
       <div className="fin-topo">
@@ -66,7 +75,7 @@ export default function Financeiro({ empresaId, fornecedores, produtos, pessoas,
         </div>
       </div>
       {linhas === null ? <p className="muted" style={{ padding: 20 }}>Carregando…</p>
-        : aba === "recebimentos" ? <Recebimentos linhas={linhas} fornecedores={fornecedores} atualizar={atualizar} />
+        : aba === "recebimentos" ? <Recebimentos linhas={linhas} fornecedores={fornecedores} atualizar={atualizar} excluir={excluir} />
         : aba === "comissoes" ? <Comissoes linhas={linhas} atualizar={atualizar} />
         : aba === "regras" ? <RegrasComissao pessoas={pessoas} fornecedores={fornecedores} produtos={produtos} recarregarPessoas={recarregarPessoas} toast={toast} />
         : <Configuracoes empresaId={empresaId} toast={toast} recarregar={carregar} />}
@@ -75,7 +84,7 @@ export default function Financeiro({ empresaId, fornecedores, produtos, pessoas,
 }
 
 /* ---------------- Recebimentos ---------------- */
-function Recebimentos({ linhas, fornecedores, atualizar }) {
+function Recebimentos({ linhas, fornecedores, atualizar, excluir }) {
   const [mes, setMes] = useState("todos");
   const [filtro, setFiltro] = useState("ativos");
   const [forn, setForn] = useState("");
@@ -155,6 +164,11 @@ function Recebimentos({ linhas, fornecedores, atualizar }) {
           <button className="btn small primary" onClick={() => emLote({ status: "recebido", data_recebimento: dataBaixa, valor_recebido: null }, "Baixa feita. Valores recebidos iguais aos previstos; ajuste na linha se houver diferença.")}>Marcar como recebido</button>
           <button className="btn small" onClick={() => emLote({ status: "estornado" }, "Marcado como estornado")}>Estornado</button>
           <button className="btn small" onClick={() => emLote({ status: "previsto" }, "Voltou para a receber")}>Voltar para a receber</button>
+          <button className="btn small danger" onClick={async () => {
+            const pagos = lista.filter((r) => sel.has(r.id) && r.repasse_pago_em).length;
+            if (!confirm(`Excluir ${ids.length} lançamento(s) de vez? Use só para lançamentos feitos por engano.${pagos ? ` Atenção: ${pagos} já tem repasse pago ao vendedor.` : ""} Isso não pode ser desfeito.`)) return;
+            if (await excluir(ids)) setSel(new Set());
+          }}>Excluir lançamento</button>
           <button className="btn small ghost" onClick={() => setSel(new Set())}>Limpar</button>
         </div>
       )}
@@ -324,7 +338,13 @@ function Comissoes({ linhas, atualizar }) {
                   <td className="txt">{r.repasse_tipo === "percentual" ? `${Number(r.repasse_base).toLocaleString("pt-BR")}% do recebido` : r.repasse_tipo === "preco" ? `${Number(r.repasse_base).toLocaleString("pt-BR")}% do preço` : `${reais(r.repasse_base)} por produto`}</td>
                   <td className="txt num destaque">{reais(r.repasse_valor)}</td>
                   <td className="txt"><span className={"tag-sit " + s}>{ROTULO_REP[s]}</span></td>
-                  <td className="txt">{dataBr(r.repasse_pago_em)}</td>
+                  <td className="txt">
+                    {r.repasse_pago_em ? (
+                      <span className="pago-em">{dataBr(r.repasse_pago_em)}
+                        <button className="btn ghost small" title="Desfazer este pagamento" onClick={() => { if (confirm(`Desfazer o pagamento de ${reais(r.repasse_valor_pago ?? r.repasse_valor)} para ${r.vendedor_nome}?`)) atualizar([r.id], { repasse_pago_em: null, repasse_valor_pago: null }, "Pagamento desfeito"); }}>Desfazer</button>
+                      </span>
+                    ) : ""}
+                  </td>
                   <td>
                     {s === "pago"
                       ? <input key={r.atualizado_em} className="cel num" type="number" step="0.01" defaultValue={r.repasse_valor_pago ?? ""}
@@ -409,6 +429,14 @@ function Configuracoes({ empresaId, toast, recarregar }) {
           <input type="number" min="1" max="31" defaultValue={cfg.quinzena_dia_2 ?? 15} onBlur={(e) => salvar({ quinzena_dia_2: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 15)) })} />
         </div>
         <p className="muted">Em meses mais curtos, vale o último dia do mês. Parcelas seguintes caem no mesmo dia dos meses seguintes.</p>
+      </section>
+      <section>
+        <h3>Quando o vendedor vê a comissão</h3>
+        <label className="cat-check" style={{ fontSize: 15, color: "var(--ink)" }}>
+          <input type="checkbox" checked={cfg.comissao_apos_conclusao !== false} onChange={(e) => salvar({ comissao_apos_conclusao: e.target.checked })} />
+          Mostrar a comissão ao vendedor só depois que a data de conclusão (instalação/ativação) for informada
+        </label>
+        <p className="muted" style={{ marginTop: 8 }}>Desligado, ela aparece em “Minhas comissões” assim que o negócio vai para Ganho. Para você, aqui no Financeiro, tudo continua aparecendo desde o Ganho.</p>
       </section>
       <section>
         <h3>Vendas que já estavam em “Ganho”</h3>

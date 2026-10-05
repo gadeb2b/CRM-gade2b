@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 27 (01/10/2026).
+Última atualização: versão 28 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -127,6 +127,7 @@ vercel.json       Agendamento do backup diário (06:00 UTC = 03:00 de Brasília)
 | `13-conclusao-e-prazo-quinzenal.sql` | Data de conclusão do pedido e regra de prazo quinzenal por produto |
 | `14-base-fresh.sql` | Produto do negócio como Base ou Fresh e comissão diferente para base |
 | `15-comissao-sobre-preco.sql` | Comissão do vendedor em % do preço do produto |
+| `16-comissao-apos-conclusao.sql` | Comissão visível ao vendedor só depois da data de conclusão (configurável) |
 
 Todos os scripts já foram executados. Um script novo deve ser rodado **antes** de subir a versão do código que depende dele.
 
@@ -185,7 +186,8 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 - Data base dos recebimentos: a **data de conclusão** do pedido (instalação/ativação), informada no negócio em Ganho e editável. Sem ela, a data fica **estimada** a partir do dia em que a venda foi fechada (aparece com "≈" no Financeiro). Ao informar ou mudar a conclusão, os recebimentos ainda não recebidos são recalculados.
 - Quando um negócio vai para a etapa de **venda ganha**, o banco cria os recebimentos previstos, com valores **congelados** naquele momento.
 - Comissão do vendedor: regra mais específica entre fornecedor + categoria → só fornecedor → só categoria → padrão do vendedor. Três modelos: % do que a empresa recebe, R$ fixo por produto ou % do preço do produto (preço do catálogo × quantidade). Com parcelas, a comissão em R$ fixo ou em % do preço é dividida igualmente entre elas.
-- O vendedor vê a comissão em "Minhas comissões" assim que o negócio vai para Ganho ("aguardando o fornecedor"); ela fica liberada quando a empresa marca o recebimento como recebido e paga quando o repasse é marcado como pago. A data de conclusão só muda as datas previstas.
+- O vendedor vê a comissão em "Minhas comissões" depois que a data de conclusão (instalação/ativação) é informada (regra ligada por padrão em Financeiro → Configurações; desligada, aparece desde o Ganho). Ela fica liberada quando a empresa marca o recebimento como recebido e paga quando o repasse é marcado como pago.
+- Correções: repasse pago por engano → botão "Desfazer" na linha (aba Repasses); recebimento marcado por engano → "Voltar para a receber"; lançamento que não deveria existir → selecionar e "Excluir lançamento" (apaga de vez, com confirmação).
 - O repasse só fica **liberado** depois que o recebimento é marcado como recebido. Se o valor recebido mudar, o repasse em % é recalculado.
 - Se o negócio sair de "ganho", for para a lixeira ou perder um produto: o que não foi recebido é **cancelado**; o que já foi recebido fica **"Para revisar"**.
 - Produto vendido sem comissão configurada gera recebimento zerado marcado "Para revisar".
@@ -340,3 +342,4 @@ Do lado do negócio:
 | v25 | Data de conclusão do pedido (editável) e regra de prazo quinzenal por produto |
 | v26 | Base/Fresh por produto do negócio com comissão própria; mensagens em sequência por etapa |
 | v27 | Comissão do vendedor em % do preço do produto |
+| v28 | Comissão do vendedor só após a conclusão (configurável); desfazer pagamento e excluir lançamento |

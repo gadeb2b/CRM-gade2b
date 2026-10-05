@@ -30,6 +30,7 @@ export default function MinhasComissoes({ toast }) {
         <div className="fin-card ok"><span>Liberadas para receber</span><b>{reais(soma("liberado"))}</b></div>
         <div className="fin-card"><span>Já recebidas</span><b>{reais(soma("pago"))}</b></div>
       </div>
+      <p className="muted" style={{ margin: "0 0 10px" }}>As comissões aparecem aqui depois que a venda é concluída (instalação ou ativação). Elas são liberadas quando a empresa recebe do fornecedor.</p>
       <div className="fin-filtros">
         <select value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Situação">
           <option value="todos">Todas</option>
