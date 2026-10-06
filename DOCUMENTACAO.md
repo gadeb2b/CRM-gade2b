@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 28 (01/10/2026).
+Última atualização: versão 30 (01/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -162,7 +162,7 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 
 ### Usuários e convites
 
-- Cadastro **só por link de convite** (`/?convite=CODIGO`). Sem convite válido, o banco recusa.
+- Cadastro **só por link de convite** (`/?convite=CODIGO`). Sem convite válido, o banco recusa. O convite só é usado no primeiro cadastro; depois, todos entram pelo endereço normal com e-mail e senha.
 - Link da equipe: o cadastro entra como **pendente** e o super admin aprova em Usuários.
 - Link de primeiro administrador (gerado na Plataforma): o cadastro vira **super admin ativo**. Vale **uma vez**.
 - Cada e-mail pertence a uma única empresa.
@@ -215,6 +215,11 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 - Aceita .xlsx, .csv ou linhas coladas do Excel/Google Sheets. O sistema reconhece as colunas pelo nome (nome, empresa, CNPJ, contato, cargo, e-mail, até 3 telefones, cidade, UF, CNAE, valor, observação) e você corrige o que precisar.
 - Opções: etapa inicial, responsável (admins podem dividir igualmente entre a equipe), produto para todos, converter MAIÚSCULAS em "Nome Próprio" e pular duplicados (mesmo CNPJ ou telefone já existente ou repetido na planilha).
 - Cada lead importado ganha um contato com os telefones (o primeiro vira principal) e o histórico "Importado da planilha …"; a coluna de observação entra como anotação.
+
+### Seleção de vários cards
+
+- Botão "Selecionar" na barra de filtros: clicar nos cards marca/desmarca; a caixinha no título da coluna marca todos os cards dela (respeitando os filtros).
+- Ações em lote: trocar responsável (só admins), mover para etapa, definir próxima ação (texto e/ou data) e mover para a lixeira. Cada negócio alterado recebe o registro no histórico. Esc ou "Concluir" saem da seleção.
 
 ### Etapas
 
@@ -343,3 +348,5 @@ Do lado do negócio:
 | v26 | Base/Fresh por produto do negócio com comissão própria; mensagens em sequência por etapa |
 | v27 | Comissão do vendedor em % do preço do produto |
 | v28 | Comissão do vendedor só após a conclusão (configurável); desfazer pagamento e excluir lançamento |
+| v29 | Descartada (link de acesso fixo por empresa) |
+| v30 | Seleção de vários cards com ações em lote (responsável, etapa, próxima ação, lixeira) |

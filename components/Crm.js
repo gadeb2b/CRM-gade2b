@@ -59,6 +59,11 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const [fprod, setFprod] = useState("");
   const [foper, setFoper] = useState("");
   const [importar, setImportar] = useState(null);
+  const [selecionando, setSelecionando] = useState(false);
+  const [sel, setSel] = useState(() => new Set());
+  const [loteAcao, setLoteAcao] = useState("");
+  const [loteValor, setLoteValor] = useState({ resp: "", etapa: "", acao: "", data: "" });
+  const [loteRodando, setLoteRodando] = useState(false);
   const [contatosMap, setContatosMap] = useState({});
   const contatosMapRef = useRef({});
   contatosMapRef.current = contatosMap;
@@ -622,6 +627,57 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
     sincronizar(nid, salvos);
   }
 
+  /* ---------- Seleção de vários cards ---------- */
+  const alternarSel = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const sairSelecao = () => { setSelecionando(false); setSel(new Set()); setLoteAcao(""); };
+
+  // Aplica uma alteração em vários negócios (em blocos, para listas grandes)
+  async function aplicarLote(patch, textoHistorico, aposLocal) {
+    const ids = [...sel].filter((id) => negocios.some((d) => d.id === id));
+    if (!ids.length) return;
+    setLoteRodando(true);
+    salvarTudoAgora();
+    let ok = 0;
+    for (let i = 0; i < ids.length; i += 100) {
+      const bloco = ids.slice(i, i + 100);
+      const { error } = await supabase.from("negocios").update(patch).in("id", bloco);
+      if (error) { toast("Erro ao aplicar: " + error.message); continue; }
+      ok += bloco.length;
+      if (textoHistorico) await supabase.from("interacoes").insert(bloco.map((id) => ({ negocio_id: id, texto: textoHistorico, sistema: true })));
+    }
+    const feitos = new Set(ids);
+    setNegocios((ns) => (aposLocal ? aposLocal(ns, feitos) : ns.map((d) => (feitos.has(d.id) ? { ...d, ...patch } : d))));
+    setInteracoes((m) => { const c = { ...m }; ids.forEach((id) => delete c[id]); return c; });
+    setLoteRodando(false);
+    toast(`${ok} negócio(s) atualizado(s)`);
+    setSel(new Set());
+    setLoteAcao("");
+  }
+
+  async function confirmarLote() {
+    const n = sel.size;
+    if (loteAcao === "resp") {
+      if (!loteValor.resp) return;
+      const nome = nomes[loteValor.resp] || "outro responsável";
+      await aplicarLote({ user_id: loteValor.resp }, `Responsável alterado para ${nome}`);
+    } else if (loteAcao === "etapa") {
+      if (!loteValor.etapa) return;
+      const patch = { etapa: loteValor.etapa, etapa_desde: hoje(), tipo_msg_id: null };
+      await aplicarLote(patch, `Movido para ${nomeEtapa(loteValor.etapa)}`, (ns, feitos) => ns.map((d) => (feitos.has(d.id)
+        ? { ...d, ...patch, ganho_em: loteValor.etapa === "ganho" && !d.ganho_em ? hoje() : d.ganho_em } : d)));
+    } else if (loteAcao === "acao") {
+      if (!loteValor.acao.trim() && !loteValor.data) return;
+      const patch = {};
+      if (loteValor.acao.trim()) patch.acao = loteValor.acao.trim();
+      if (loteValor.data) patch.acao_data = loteValor.data;
+      await aplicarLote(patch, null);
+    } else if (loteAcao === "lixeira") {
+      if (!confirm(`Mover ${n} negócio(s) para a lixeira? Dá para restaurar depois.`)) return;
+      await aplicarLote({ excluido_em: new Date().toISOString(), excluido_por: userId }, "Enviado para a lixeira",
+        (ns, feitos) => ns.filter((d) => !feitos.has(d.id)));
+    }
+  }
+
   /* ---------- Etapas do quadro ---------- */
   const acoesEtapas = {
     renomear: async (chave, nome) => {
@@ -682,10 +738,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   }
 
   useEffect(() => {
-    const esc = (e) => { if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto || importar)) fechar(); };
+    const esc = (e) => { if (e.key === "Escape" && selecionando && !abertoId) { setSelecionando(false); setSel(new Set()); return; } if (e.key === "Escape" && (abertoId || rascunho || cfgAberto || usuariosAberto || backupAberto || lixeiraAberta || empresaAberta || etapasAberto || importar)) fechar(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, empresaAberta, etapasAberto, importar, fechar]);
+  }, [abertoId, rascunho, cfgAberto, usuariosAberto, backupAberto, lixeiraAberta, empresaAberta, etapasAberto, importar, selecionando, fechar]);
 
   useEffect(() => {
     if (!menuAberto) return;
@@ -783,6 +839,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
                 <button key={id} className="chip" aria-pressed={filtro === id} onClick={() => setFiltro(id)}>{t}</button>
               ))}
             </div>
+            <button className={"chip" + (selecionando ? " sel-ativo" : "")} aria-pressed={selecionando}
+              onClick={() => { setSelecionando((v) => !v); setSel(new Set()); setLoteAcao(""); }}>
+              {selecionando ? "Sair da seleção" : "Selecionar"}
+            </button>
             <div className="spacer" />
             <select className="fsel" aria-label="Filtrar por produto" value={fprod} onChange={(e) => setFprod(e.target.value)}>
               <option value="">Todos os produtos</option>
@@ -850,6 +910,11 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
               onDrop={(ev) => { ev.preventDefault(); setSobre(null); mover(ev.dataTransfer.getData("text/plain"), e.id); }}>
               <div className="col-head">
                 <div className="col-title">
+                  {selecionando && lista.length > 0 && (
+                    <input type="checkbox" className="col-sel" aria-label={`Selecionar todos de ${e.nome}`}
+                      checked={lista.every((d) => sel.has(d.id))}
+                      onChange={(ev) => setSel((s) => { const n = new Set(s); lista.forEach((d) => (ev.target.checked ? n.add(d.id) : n.delete(d.id))); return n; })} />
+                  )}
                   <span className="dot" style={{ background: e.cor }} /><span className="col-nome" title={e.nome}>{e.nome}</span><span className="count">{lista.length}</span>
                   <span className="col-acoes">
                     <button type="button" className="col-btn" title={`Novo lead em “${e.nome}”`} aria-label={`Novo lead em ${e.nome}`} onClick={() => novoNegocio(e.id)}>+</button>
@@ -859,7 +924,8 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
                 <div className="col-sum">{brl.format(soma)}</div>
               </div>
               <div className="cards">
-                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} resp={ehAdmin ? nomes[d.user_id] : null} operadora={principalDe(contatosMap[d.id])?.t.operadora} onOpen={() => abrir(d.id)} />)
+                {lista.length ? lista.map((d) => <Card key={d.id} d={d} produtos={produtos} resp={ehAdmin ? nomes[d.user_id] : null} operadora={principalDe(contatosMap[d.id])?.t.operadora}
+                  modoSel={selecionando} marcado={sel.has(d.id)} onOpen={() => (selecionando ? alternarSel(d.id) : abrir(d.id))} />)
                   : <div className="empty">{busca || fprod || filtro !== "todos" ? "Nenhum negócio com esse filtro" : "Arraste um card para cá"}</div>}
               </div>
             </section>
@@ -919,21 +985,66 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       {empresaAberta && empresa && <MinhaEmpresa empresa={empresa} toast={toast} recarregar={recarregarEmpresa} fechar={fechar} />}
       {usuariosAberto && <Usuarios empresa={empresa} pessoas={pessoas} meId={userId} recarregar={carregarPessoas} fechar={fechar} toast={toast} />}
 
+      {selecionando && tela === "quadro" && (
+        <div className="lote-barra" role="region" aria-label="Ações nos negócios selecionados">
+          <b>{sel.size} selecionado(s)</b>
+          {!sel.size && <span className="muted">Clique nos cards (ou na caixinha da coluna) para selecionar.</span>}
+          {sel.size > 0 && (
+            <>
+              <select value={loteAcao} onChange={(e) => setLoteAcao(e.target.value)} aria-label="O que fazer">
+                <option value="">O que fazer?</option>
+                {ehAdmin && <option value="resp">Trocar responsável</option>}
+                <option value="etapa">Mover para etapa</option>
+                <option value="acao">Definir próxima ação</option>
+                <option value="lixeira">Mover para a lixeira</option>
+              </select>
+              {loteAcao === "resp" && (
+                <select value={loteValor.resp} onChange={(e) => setLoteValor((v) => ({ ...v, resp: e.target.value }))} aria-label="Novo responsável">
+                  <option value="">Escolha o responsável</option>
+                  {pessoas.filter((p) => p.status === "ativo").map((p) => <option key={p.user_id} value={p.user_id}>{p.nome || p.email}</option>)}
+                </select>
+              )}
+              {loteAcao === "etapa" && (
+                <select value={loteValor.etapa} onChange={(e) => setLoteValor((v) => ({ ...v, etapa: e.target.value }))} aria-label="Nova etapa">
+                  <option value="">Escolha a etapa</option>
+                  {ETAPAS.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                </select>
+              )}
+              {loteAcao === "acao" && (
+                <>
+                  <input placeholder="Próxima ação (ex.: Ligar)" value={loteValor.acao} onChange={(e) => setLoteValor((v) => ({ ...v, acao: e.target.value }))} aria-label="Próxima ação" />
+                  <input type="date" value={loteValor.data} onChange={(e) => setLoteValor((v) => ({ ...v, data: e.target.value }))} aria-label="Data da próxima ação" />
+                </>
+              )}
+              {loteAcao && (
+                <button className={"btn small " + (loteAcao === "lixeira" ? "danger" : "primary")} disabled={loteRodando} onClick={confirmarLote}>
+                  {loteRodando ? "Aplicando…" : "Aplicar"}
+                </button>
+              )}
+              <button className="btn small ghost" onClick={() => setSel(new Set())}>Limpar</button>
+            </>
+          )}
+          <span className="spacer" />
+          <button className="btn small" onClick={sairSelecao}>Concluir</button>
+        </div>
+      )}
       <div className={"toast" + (toastTxt ? " show" : "")} role="status" aria-live="polite">{toastTxt}</div>
     </div>
   );
 }
 
-function Card({ d, produtos, resp, operadora, onOpen }) {
+function Card({ d, produtos, resp, operadora, onOpen, modoSel = false, marcado = false }) {
   const s = statusAcao(d);
   const ps = prodsDe(d, produtos);
   const parado = ABERTAS.includes(d.etapa) ? diff(hoje(), d.etapa_desde) : 0;
   return (
-    <div className={"card " + d.canal} draggable tabIndex={0} role="button" aria-label={`${d.nome || "Sem nome"}, ${brl.format(+d.valor || 0)}`}
+    <div className={"card " + d.canal + (modoSel ? " modo-sel" : "") + (marcado ? " marcado" : "")} draggable={!modoSel} tabIndex={0} role="button" aria-pressed={modoSel ? marcado : undefined}
+      aria-label={`${d.nome || "Sem nome"}, ${brl.format(+d.valor || 0)}${modoSel ? (marcado ? ", selecionado" : ", não selecionado") : ""}`}
       onClick={onOpen}
       onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(); } }}
       onDragStart={(ev) => { ev.dataTransfer.setData("text/plain", d.id); ev.dataTransfer.effectAllowed = "move"; ev.currentTarget.classList.add("dragging"); }}
       onDragEnd={(ev) => ev.currentTarget.classList.remove("dragging")}>
+      {modoSel && <span className="c-check" aria-hidden="true">{marcado ? "✓" : ""}</span>}
       <div className="c-top"><span className="c-name" title={d.nome}>{d.nome || "Sem nome"}</span><span className="c-val">{brlExato(d.valor)}</span></div>
       {d.empresa && <div className="c-co" title={d.empresa}>{d.empresa}</div>}
       {ps.length > 0 && (
