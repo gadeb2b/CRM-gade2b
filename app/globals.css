@@ -436,3 +436,10 @@ header{flex-direction:column;align-items:stretch;gap:10px}
 .lote-barra .spacer{flex:1;min-width:8px}
 .board{padding-bottom:90px}
 .chip.sel-ativo[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
+
+/* Imagem nas mensagens */
+.img-msg{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.img-msg-previa{width:160px;height:110px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden}
+.img-msg-previa img{max-width:100%;max-height:100%;object-fit:contain}
+.msg-img{display:flex;gap:12px;align-items:flex-start;margin:0 0 10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.msg-img img{width:120px;max-height:120px;object-fit:contain;border-radius:6px;background:var(--bg)}

@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 31 (23/10/2026).
+Última atualização: versão 32 (23/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -128,6 +128,7 @@ vercel.json       Agendamento do backup diário (06:00 UTC = 03:00 de Brasília)
 | `14-base-fresh.sql` | Produto do negócio como Base ou Fresh e comissão diferente para base |
 | `15-comissao-sobre-preco.sql` | Comissão do vendedor em % do preço do produto |
 | `16-comissao-apos-conclusao.sql` | Comissão visível ao vendedor só depois da data de conclusão (configurável) |
+| `17-imagens-mensagens.sql` | Imagem nas mensagens (tipos e mensagens por produto) e pasta "midias" no Storage |
 
 Todos os scripts já foram executados. Um script novo deve ser rodado **antes** de subir a versão do código que depende dele.
 
@@ -199,6 +200,7 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 - `{preco}` já inclui "R$", centavos e "/mês" nos produtos mensais (o sistema evita "R$ R$").
 - Mensagem específica do produto substitui o modelo do tipo quando o negócio tem só aquele produto.
 - Envio: abre o WhatsApp (links wa.me) ou o programa de e-mail do usuário; o envio é registrado no histórico.
+- Imagem: cada tipo de mensagem e cada mensagem específica de produto pode ter uma imagem (pasta "midias" do Storage, por empresa). Como o link do WhatsApp só leva texto, no computador o botão "Copiar imagem e abrir WhatsApp" copia a imagem (colar com Ctrl + V na conversa) e abre a conversa com o texto; no celular, "Compartilhar com imagem" usa o compartilhamento do aparelho (imagem + texto como legenda, escolhendo o contato no WhatsApp). Com a API oficial do WhatsApp, o envio com imagem passa a ser automático.
 
 ### Contatos e operadora
 
@@ -351,3 +353,4 @@ Do lado do negócio:
 | v29 | Descartada (link de acesso fixo por empresa) |
 | v30 | Seleção de vários cards com ações em lote (responsável, etapa, próxima ação, lixeira) |
 | v31 | Importação de leads com quantos telefones a planilha tiver (várias colunas e vários números por célula) |
+| v32 | Imagem nas mensagens de WhatsApp (copiar e colar no computador, compartilhar no celular) |

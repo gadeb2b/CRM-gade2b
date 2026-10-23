@@ -52,6 +52,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   const [produtos, setProdutos] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [modelos, setModelos] = useState({});
+  const [modelosImg, setModelosImg] = useState({});
   const [assinatura, setAssinatura] = useState("");
   const [interacoes, setInteracoes] = useState({});
   const [filtro, setFiltro] = useState("todos");
@@ -153,7 +154,9 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       const qtds = {}, tcs = {};
       np.data.forEach((r) => { (mapa[r.negocio_id] ||= []).push(r.produto_id); (qtds[r.negocio_id] ||= {})[r.produto_id] = r.quantidade || 1; (tcs[r.negocio_id] ||= {})[r.produto_id] = r.tipo_cliente || "fresh"; });
       const mm = {};
-      m.data.forEach((r) => { mm[r.produto_id + ":" + r.tipo_id] = r.modelo; });
+      const mi = {};
+      m.data.forEach((r) => { mm[r.produto_id + ":" + r.tipo_id] = r.modelo; if (r.imagem_url) mi[r.produto_id + ":" + r.tipo_id] = r.imagem_url; });
+      setModelosImg(mi);
 
       setNegocios(n.data.map((d) => ({ ...d, valor: Number(d.valor) || 0, produtos: mapa[d.id] || [], qtd: qtds[d.id] || {}, tc: tcs[d.id] || {} })));
       setProdutos(p.data.map((x) => ({ ...x, preco: Number(x.preco) || 0 })));
@@ -185,7 +188,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
   }, [ehAdmin]);
   useEffect(() => { carregarPessoas(); }, [carregarPessoas]);
 
-  const ctx = useMemo(() => ({ produtos, tipos, modelos, assinatura, fornecedores }), [produtos, tipos, modelos, assinatura, fornecedores]);
+  const ctx = useMemo(() => ({ produtos, tipos, modelos, assinatura, fornecedores , modelosImg }), [produtos, tipos, modelos, assinatura, fornecedores, modelosImg]);
 
   /* ---------- Negócios ---------- */
   const atualizarNegocio = useCallback((id, patch) => {
@@ -424,6 +427,10 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       setNegocios((ns) => ns.map((d) => ({ ...d, produtos: d.produtos.filter((x) => x !== id) })));
       if (fprod === id) setFprod("");
       toast("Produto excluído");
+    },
+    setModeloImagem: (produtoId, tipoId, url) => {
+      setModelosImg((m) => ({ ...m, [produtoId + ":" + tipoId]: url }));
+      salvarDepois("modelos_produto", produtoId + ":" + tipoId, { produto_id: produtoId, tipo_id: tipoId, imagem_url: url }, null, "produto_id,tipo_id");
     },
     setModelo: (produtoId, tipoId, texto) => {
       setModelos((m) => ({ ...m, [produtoId + ":" + tipoId]: texto }));
@@ -867,7 +874,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
       </header>
 
       {tela === "catalogo" ? (
-        <Catalogo fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} cfg={cfg} voltar={() => setTela("quadro")} />
+        <Catalogo empresaId={empresa?.id} toast={toast} fornecedores={fornecedores} produtos={produtos} tipos={tipos} modelos={modelos} modelosImg={modelosImg} cfg={cfg} voltar={() => setTela("quadro")} />
       ) : tela === "financeiro" ? (
         <Financeiro empresaId={empresa?.id} fornecedores={fornecedores} produtos={produtos} pessoas={pessoas} recarregarPessoas={carregarPessoas} toast={toast} />
       ) : tela === "minhas" ? (
@@ -967,7 +974,7 @@ export default function Crm({ sessao, perfil, empresa, plataforma, recarregarEmp
           fechar={fechar} toast={toast}
         />
       )}
-      {cfgAberto && <Config tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
+      {cfgAberto && <Config empresaId={empresa?.id} toast={toast} tipos={tipos} modelos={modelos} assinatura={assinatura} cfg={cfg} fechar={fechar} podeEditar={ehAdmin} />}
       {lixeiraAberta && (
         <Lixeira ehAdmin={ehAdmin} userId={userId} nomes={nomes} fechar={fechar} toast={toast}
           onRestaurado={(d) => { setNegocios((ns) => [d, ...ns]); setInteracoes((m) => { const c = { ...m }; delete c[d.id]; return c; }); }} />

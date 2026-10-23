@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ETAPAS, VARS } from "../lib/constantes";
 import { IcX } from "./Icon";
+import ImagemMensagem from "./ImagemMensagem";
 import { ordenarTipos } from "../lib/mensagens";
 
 function Vars() {
@@ -13,7 +14,7 @@ function Vars() {
   );
 }
 
-export default function Config({ tipos, assinatura, cfg, fechar, podeEditar }) {
+export default function Config({ empresaId, toast, tipos, assinatura, cfg, fechar, podeEditar }) {
   const [aba, setAba] = useState(podeEditar ? "tipos" : "remetente");
   const [abertoItem, setAbertoItem] = useState(null);
   const [verEtapa, setVerEtapa] = useState("");
@@ -64,6 +65,9 @@ export default function Config({ tipos, assinatura, cfg, fechar, podeEditar }) {
                       <div className="field full"><label>Objetivo da mensagem</label><textarea value={t.objetivo} onChange={(e) => cfg.updTipo(t.id, { objetivo: e.target.value })} /></div>
                       <div className="field full"><label>Assunto do e-mail</label><input value={t.assunto} onChange={(e) => cfg.updTipo(t.id, { assunto: e.target.value })} /></div>
                       <div className="field full"><label>Modelo padrão</label><textarea style={{ minHeight: 110 }} value={t.modelo} onChange={(e) => cfg.updTipo(t.id, { modelo: e.target.value })} /></div>
+                      <div className="field full"><label>Imagem para o WhatsApp (opcional)</label>
+                        <ImagemMensagem url={t.imagem_url || ""} empresaId={empresaId} toast={toast} onChange={(url) => cfg.updTipo(t.id, { imagem_url: url })} />
+                      </div>
                     </div>
                     <Vars />
                     <div className="lbl" style={{ marginBottom: 6 }}>Usar nas etapas (pode marcar várias)</div>

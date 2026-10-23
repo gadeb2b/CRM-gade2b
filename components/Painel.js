@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { ETAPAS, CNAES, nomeEtapa } from "../lib/constantes";
 import { fmtData, soDigitos, cnpjValido, formatarCnpj, waLinkPara, mailLinkPara } from "../lib/util";
 import ContatosEditor from "./ContatosEditor";
-import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA, sequenciaDaEtapa, ordenarTipos } from "../lib/mensagens";
+import { modeloPara, prodsDe, precoTxt, tipoAtual, juntar, promptIA, sequenciaDaEtapa, ordenarTipos, imagemPara } from "../lib/mensagens";
 import { IcChat, IcMail, IcSpark, IcX } from "./Icon";
 
 export default function Painel({ novo = false, criando = false, concluir, d, contatos = [], opsContatos, ctx, interacoes, iaDisponivel, focoNome, responsaveis, atualizar, mover, toggleProduto, setQuantidade, setTipoCliente, registrar, excluir, fechar, toast }) {
@@ -172,6 +172,58 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
     }, 400);
   }
 
+  // ---------- Imagem da mensagem (WhatsApp) ----------
+  const imagem = imagemPara(d, ctx);
+  const [comImagem, setComImagem] = useState(true);
+  const [podeCompartilhar, setPodeCompartilhar] = useState(false);
+  const pngRef = useRef({ url: "", promessa: null });
+  useEffect(() => {
+    try { setPodeCompartilhar(!!navigator.canShare && navigator.canShare({ files: [new File([""], "a.png", { type: "image/png" })] })); } catch { setPodeCompartilhar(false); }
+  }, []);
+  useEffect(() => {
+    if (!imagem || pngRef.current.url === imagem) return;
+    // Já prepara a imagem em PNG (formato que a área de transferência aceita)
+    const promessa = fetch(imagem).then((r) => r.blob()).then(async (blob) => {
+      if (blob.type === "image/png") return blob;
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement("canvas");
+      c.width = bmp.width; c.height = bmp.height;
+      c.getContext("2d").drawImage(bmp, 0, 0);
+      return await new Promise((res) => c.toBlob(res, "image/png"));
+    });
+    promessa.catch(() => {});
+    pngRef.current = { url: imagem, promessa };
+  }, [imagem]);
+
+  async function enviarComImagem() {
+    if (novo || !telEscolhido) return;
+    const link = waLinkPara(telEscolhido.numero, d.msg_rascunho);
+    let copiou = false;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": pngRef.current.promessa })]);
+      copiou = true;
+    } catch { /* o navegador não deixou copiar */ }
+    window.open(link, "_blank", "noopener");
+    toast(copiou
+      ? "Imagem copiada! No WhatsApp, aperte Ctrl + V para colar e envie a imagem. O texto já está escrito na conversa."
+      : "Não deu para copiar a imagem neste navegador. Use “Abrir imagem” e anexe no WhatsApp. O texto já está escrito na conversa.");
+    registrar(`WhatsApp enviado com imagem para ${telEscolhido.rotulo}: ${descEnvio}`, true);
+    avancarSequencia();
+  }
+
+  async function compartilharComImagem() {
+    if (novo) return;
+    try {
+      const blob = await pngRef.current.promessa;
+      await navigator.share({ files: [new File([blob], "imagem.png", { type: "image/png" })], text: d.msg_rascunho });
+      registrar(`Mensagem com imagem compartilhada${telEscolhido ? " (para " + telEscolhido.rotulo + ")" : ""}: ${descEnvio}`, true);
+      toast("Envio registrado no histórico");
+      avancarSequencia();
+    } catch (e) {
+      if (e?.name !== "AbortError") toast("Não foi possível compartilhar a imagem neste aparelho.");
+    }
+  }
+
   const descEnvio = t ? t.nome + (ps.length ? " – " + juntar(ps.map((p) => p.nome)) : "") : "";
   const campo = (k, extra = {}) => ({ value: d[k] ?? "", onChange: (e) => atualizar({ [k]: extra.num ? Number(e.target.value) || 0 : e.target.value }) });
 
@@ -283,11 +335,32 @@ export default function Painel({ novo = false, criando = false, concluir, d, con
             onChange={(e) => { setAviso(null); atualizar({ msg_rascunho: e.target.value, msg_origem: "manual" }); }} />
           <div className={"status" + (aviso?.cls ? " " + aviso.cls : "")}>{aviso ? aviso.t : statusPadrao}</div>
           {novo && <p className="muted" style={{ margin: "0 0 10px" }}>Clique em Concluir para salvar o negócio antes de enviar a mensagem.</p>}
+          {imagem && (
+            <div className="msg-img">
+              <img src={imagem} alt="Imagem da mensagem" />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="cat-check"><input type="checkbox" checked={comImagem} onChange={(e) => setComImagem(e.target.checked)} /> Enviar com esta imagem</label>
+                <a className="btn small ghost" href={imagem} target="_blank" rel="noopener">Abrir imagem</a>
+                {comImagem && podeCompartilhar && (
+                  <button type="button" className="btn small" disabled={novo} onClick={compartilharComImagem} title="Abre o compartilhamento do aparelho: escolha o WhatsApp e o contato; a imagem vai com o texto como legenda">
+                    Compartilhar com imagem
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="send">
-            <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !telEscolhido} href={!novo && telEscolhido ? waLinkPara(telEscolhido.numero, d.msg_rascunho) : undefined}
-              onClick={() => { if (!novo && telEscolhido) { registrar(`WhatsApp enviado para ${telEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); avancarSequencia(); } }}>
-              <IcChat /> Abrir WhatsApp
-            </a>
+            {imagem && comImagem ? (
+              <button type="button" className="btn wa" disabled={novo || !telEscolhido} onClick={enviarComImagem}
+                title="Copia a imagem e abre a conversa com o texto pronto; no WhatsApp, cole com Ctrl + V">
+                <IcChat /> Copiar imagem e abrir WhatsApp
+              </button>
+            ) : (
+              <a className="btn wa" target="_blank" rel="noopener" aria-disabled={novo || !telEscolhido} href={!novo && telEscolhido ? waLinkPara(telEscolhido.numero, d.msg_rascunho) : undefined}
+                onClick={() => { if (!novo && telEscolhido) { registrar(`WhatsApp enviado para ${telEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); avancarSequencia(); } }}>
+                <IcChat /> Abrir WhatsApp
+              </a>
+            )}
             <a className="btn mail" aria-disabled={novo || !mailEscolhido} href={!novo && mailEscolhido ? mailLinkPara(mailEscolhido.email, d.assunto_rascunho, d.msg_rascunho) : undefined}
               onClick={() => { if (!novo && mailEscolhido) { registrar(`E-mail enviado para ${mailEscolhido.rotulo}: ${descEnvio}`, true); toast("Envio registrado no histórico"); avancarSequencia(); } }}>
               <IcMail /> Abrir e-mail

@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { VARS } from "../lib/constantes";
 import { IcX, IcPlus, IcSearch } from "./Icon";
+import ImagemMensagem from "./ImagemMensagem";
 
 // Converte "R$ 1.799,90", "1799.9", "99,99" em número
 function lerPreco(v) {
@@ -46,7 +47,7 @@ function comissaoTxt(p) {
   return temBase ? `Fresh ${fmt(fresh)} · Base ${fmt(calc(p.comissao_valor_base))}` : fmt(fresh);
 }
 
-export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, voltar }) {
+export default function Catalogo({ empresaId, toast, fornecedores, produtos, tipos, modelos, modelosImg = {}, cfg, voltar }) {
   const [forn, setForn] = useState("todos"); // "todos" | "sem" | id
   const [busca, setBusca] = useState("");
   const [inativos, setInativos] = useState(false);
@@ -224,7 +225,7 @@ export default function Catalogo({ fornecedores, produtos, tipos, modelos, cfg, 
       </section>
 
       {colando && <Colagem fornecedores={fornecedores} fornPadrao={fornAtual?.id || ""} cfg={cfg} fechar={() => setColando(false)} />}
-      {msgDe && <MensagensProduto produto={produtos.find((p) => p.id === msgDe)} tipos={tipos} modelos={modelos} cfg={cfg} fechar={() => setMsgDe(null)} />}
+      {msgDe && <MensagensProduto produto={produtos.find((p) => p.id === msgDe)} tipos={tipos} modelos={modelos} modelosImg={modelosImg} empresaId={empresaId} toast={toast} cfg={cfg} fechar={() => setMsgDe(null)} />}
     </div>
   );
 }
@@ -294,7 +295,7 @@ function Colagem({ fornecedores, fornPadrao, cfg, fechar }) {
   );
 }
 
-function MensagensProduto({ produto, tipos, modelos, cfg, fechar }) {
+function MensagensProduto({ produto, tipos, modelos, modelosImg, empresaId, toast, cfg, fechar }) {
   if (!produto) return null;
   return (
     <>
@@ -316,6 +317,7 @@ function MensagensProduto({ produto, tipos, modelos, cfg, fechar }) {
             <div key={t.id} className="field" style={{ marginBottom: 12 }}>
               <label>{t.nome}</label>
               <textarea style={{ minHeight: 110 }} placeholder={`Em branco: usa o modelo padrão de “${t.nome}”`} value={modelos[produto.id + ":" + t.id] || ""} onChange={(e) => cfg.setModelo(produto.id, t.id, e.target.value)} />
+              <ImagemMensagem url={modelosImg[produto.id + ":" + t.id] || ""} empresaId={empresaId} toast={toast} onChange={(url) => cfg.setModeloImagem(produto.id, t.id, url)} />
             </div>
           ))}
         </div>
