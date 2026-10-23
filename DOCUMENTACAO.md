@@ -1,6 +1,6 @@
 # Documentação do CRM de vendas (plataforma multiempresa)
 
-Última atualização: versão 30 (01/10/2026).
+Última atualização: versão 31 (23/10/2026).
 
 Este arquivo reúne tudo o que é preciso para entender, manter e continuar o projeto: contas, estrutura do código, banco de dados, regras de negócio, deploy e solução de problemas. Ao abrir uma conversa nova com o Claude, envie este arquivo para ele ter o contexto completo.
 
@@ -212,7 +212,7 @@ As funções auxiliares ficam no schema `interno` (não exposto pela API): `minh
 ### Importação de leads
 
 - Menu ☰ → Importar leads, ou o botão ⤒ no título de cada coluna do quadro (importa direto naquela etapa). O botão + ao lado cria um lead naquela etapa.
-- Aceita .xlsx, .csv ou linhas coladas do Excel/Google Sheets. O sistema reconhece as colunas pelo nome (nome, empresa, CNPJ, contato, cargo, e-mail, até 3 telefones, cidade, UF, CNAE, valor, observação) e você corrige o que precisar.
+- Aceita .xlsx, .csv ou linhas coladas do Excel/Google Sheets. O sistema reconhece as colunas pelo nome (nome, empresa, CNPJ, contato, cargo, e-mail, telefones, cidade, UF, CNAE, valor, observação). Telefones: quantas colunas a planilha tiver (WhatsApp, celular, fixo ou outro) e vários números na mesma célula; o primeiro WhatsApp (ou celular, ou fixo) vira o principal e números repetidos entram uma vez só e você corrige o que precisar.
 - Opções: etapa inicial, responsável (admins podem dividir igualmente entre a equipe), produto para todos, converter MAIÚSCULAS em "Nome Próprio" e pular duplicados (mesmo CNPJ ou telefone já existente ou repetido na planilha).
 - Cada lead importado ganha um contato com os telefones (o primeiro vira principal) e o histórico "Importado da planilha …"; a coluna de observação entra como anotação.
 
@@ -350,3 +350,4 @@ Do lado do negócio:
 | v28 | Comissão do vendedor só após a conclusão (configurável); desfazer pagamento e excluir lançamento |
 | v29 | Descartada (link de acesso fixo por empresa) |
 | v30 | Seleção de vários cards com ações em lote (responsável, etapa, próxima ação, lixeira) |
+| v31 | Importação de leads com quantos telefones a planilha tiver (várias colunas e vários números por célula) |

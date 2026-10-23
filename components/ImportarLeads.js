@@ -18,6 +18,7 @@ const CAMPOS = [
   ["tel_whatsapp", "Telefone (WhatsApp)"],
   ["tel_celular", "Telefone (celular)"],
   ["tel_fixo", "Telefone (fixo)"],
+  ["tel_outro", "Telefone (outro)"],
   ["cidade", "Cidade"],
   ["uf", "UF"],
   ["cnae", "CNAE"],
@@ -40,7 +41,8 @@ function adivinhar(cabecalhos) {
     const h = sem(c);
     for (const [re, campo] of regras) {
       let alvo = campo;
-      if (alvo === "tel_celular" && usados.has("tel_celular")) alvo = usados.has("tel_fixo") ? "" : "tel_fixo";
+      // Telefones podem aparecer em quantas colunas a planilha tiver
+      if (re.test(h) && alvo.startsWith("tel_")) return alvo;
       if (re.test(h) && alvo && !usados.has(alvo)) { usados.add(alvo); return alvo; }
     }
     return "";
@@ -84,6 +86,18 @@ function formatarTel(v) {
   if (n.length === 11) return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
   if (n.length === 10) return `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}`;
   return String(v || "").trim();
+}
+// Separa vários números escritos na mesma célula ("11 98888-7777 / 11 3333-4444", "x; y", "x e y")
+function separarNumeros(v) {
+  const partes = String(v || "").split(/\s*(?:[\/;,|\n]|\s+e\s+|\s+ou\s+)\s*/i).map((x) => x.trim()).filter(Boolean);
+  return partes.flatMap((p) => {
+    // Números colados só com espaço: "11988887777 11977776666"
+    if (soDigitos(p).length >= 20) {
+      const achados = p.match(/(?:\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/g) || [];
+      if (achados.length > 1) return achados.map((x) => x.trim());
+    }
+    return [p];
+  });
 }
 const digitosTel = (v) => { let n = soDigitos(v); if ((n.length === 12 || n.length === 13) && n.startsWith("55")) n = n.slice(2); return n; };
 function lerValor(v) {
@@ -145,8 +159,13 @@ export default function ImportarLeads({ etapaInicial, produtos, pessoas, ehAdmin
     const pega = (l, campo) => { const i = idx(campo); return i >= 0 ? texto(l[i]) : ""; };
     return dadosBrutos.map((l, n) => {
       const ajusta = (v) => (corrigirMaiusculas && ehMaiusculas(v) ? titulo(v) : v);
-      const tels = [["tel_whatsapp", "whatsapp"], ["tel_celular", "celular"], ["tel_fixo", "fixo"]]
-        .map(([c, et]) => ({ numero: formatarTel(pega(l, c)), etiqueta: et, dig: digitosTel(pega(l, c)) }))
+      // Todos os telefones: de todas as colunas de telefone e vários números na mesma célula.
+      // O WhatsApp vem primeiro (vira o principal), depois celular, fixo e outros.
+      const prioridade = { tel_whatsapp: 0, tel_celular: 1, tel_fixo: 2, tel_outro: 3 };
+      const tels = mapa.map((campo, i) => ({ campo, i }))
+        .filter((c) => c.campo && c.campo.startsWith("tel_"))
+        .sort((a, b) => prioridade[a.campo] - prioridade[b.campo] || a.i - b.i)
+        .flatMap((c) => separarNumeros(texto(l[c.i])).map((n) => ({ numero: formatarTel(n), etiqueta: c.campo.slice(4), dig: digitosTel(n) })))
         .filter((t, i, arr) => t.dig.length >= 8 && arr.findIndex((y) => y.dig === t.dig) === i);
       const cnpjDig = soDigitos(pega(l, "cnpj"));
       const empresa = ajusta(pega(l, "empresa"));
@@ -271,7 +290,7 @@ export default function ImportarLeads({ etapaInicial, produtos, pessoas, ehAdmin
         {passo === 2 && (
           <>
             <p className="muted" style={{ marginTop: 0 }}>
-              {arquivo ? <>Arquivo <b>{arquivo}</b> · </> : null}{dadosBrutos.length} linha(s). Confira para onde vai cada coluna. Colunas marcadas como “ignorar” não são importadas.
+              {arquivo ? <>Arquivo <b>{arquivo}</b> · </> : null}{dadosBrutos.length} linha(s). Confira para onde vai cada coluna. Colunas marcadas como “ignorar” não são importadas. Os tipos de telefone podem ser usados em quantas colunas precisar, e células com vários números (separados por / , ; ou “e”) são divididas.
             </p>
             <div className="planilha-wrap" style={{ flex: "none" }}>
               <table className="planilha">
@@ -283,7 +302,7 @@ export default function ImportarLeads({ etapaInicial, produtos, pessoas, ehAdmin
                       <td className="txt muted imp-ex">{dadosBrutos.slice(0, 3).map((l) => l[i]).filter(Boolean).join(" · ")}</td>
                       <td>
                         <select className="cel" value={mapa[i] || ""} onChange={(e) => setMapa((m) => { const n = [...m]; n[i] = e.target.value; return n; })}>
-                          {CAMPOS.map(([v, t]) => <option key={v} value={v} disabled={v && mapa.includes(v) && mapa[i] !== v}>{t}</option>)}
+                          {CAMPOS.map(([v, t]) => <option key={v} value={v} disabled={v && !v.startsWith("tel_") && mapa.includes(v) && mapa[i] !== v}>{t}</option>)}
                         </select>
                       </td>
                     </tr>
@@ -291,7 +310,7 @@ export default function ImportarLeads({ etapaInicial, produtos, pessoas, ehAdmin
                 </tbody>
               </table>
             </div>
-            {!mapa.some((m) => ["nome", "empresa", "razao_social", "contato_nome", "tel_whatsapp", "tel_celular", "tel_fixo", "email"].includes(m)) &&
+            {!mapa.some((m) => ["nome", "empresa", "razao_social", "contato_nome", "tel_whatsapp", "tel_celular", "tel_fixo", "tel_outro", "email"].includes(m)) &&
               <p className="status err">Escolha pelo menos uma coluna de nome, empresa, telefone ou e-mail.</p>}
           </>
         )}
